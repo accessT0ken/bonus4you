@@ -2,10 +2,11 @@
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Trophy, Shield, Sparkles, Coins, Menu, X, Star, Gift, Zap, ChevronDown } from "lucide-react"
+import { Trophy, Shield, Sparkles, Coins, Menu, X, Star, Gift, Zap, ChevronDown,  Wallet, CreditCard, DollarSign, Bitcoin} from "lucide-react"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { getCasinos, trackLandingPageView, trackClaimBonusClick, type Casino } from "@/lib/casino-data"
+import { paymentMethods } from "@/lib/casino-data"
 
 function CasinoCard({ casino }: { casino: Casino }) {
   const [isHovered, setIsHovered] = useState(false)
@@ -20,6 +21,14 @@ function CasinoCard({ casino }: { casino: Casino }) {
     trackClaimBonusClick(casino.slug)
     // In production, this would redirect to the casino's affiliate link
     window.open(`/go/${casino.slug}`, "_blank")
+  }
+
+  const iconMap: Record<string, JSX.Element> = {
+    bitcoin: <Bitcoin className="w-4 h-4 text-primary" />,
+    ethereum: <Coins className="w-4 h-4 text-primary" />,
+    wallet: <Wallet className="w-4 h-4 text-primary" />,
+    card: <CreditCard className="w-4 h-4 text-primary" />,
+    usd: <DollarSign className="w-4 h-4 text-primary" />,
   }
 
   return (
@@ -144,22 +153,46 @@ function CasinoCard({ casino }: { casino: Casino }) {
               {/* Payment methods */}
               <div className="flex-1">
                 <p className="text-[11px] font-semibold text-gray-600 mb-2">Payment Methods</p>
+
                 <div className="grid grid-cols-3 gap-1.5">
-                  {[
-                    "/cs2-logo.jpg",
-                    "/bitcoin-logo.png",
-                    "/ethereum-logo.png",
-                    "/paypal-logo.png",
-                    "/visa-logo-generic.png",
-                    "/mastercard-logo.png",
-                  ].map((payment, i) => (
-                    <div
-                      key={i}
-                      className="h-8 bg-gray-50 border border-gray-200 rounded overflow-hidden flex items-center justify-center"
-                    >
-                      <img src={payment || "/placeholder.svg"} alt="" className="w-full h-full object-cover" />
-                    </div>
-                  ))}
+                  {(() => {
+                    const ids = casino.paymentMethodIds || []
+                    const methods = ids
+                      .map((id) => paymentMethods.find((m) => m.id === id))
+                      .filter(Boolean)
+
+                    const total = methods.length
+                    const maxToShow = 9
+                    const visible = methods.slice(0, maxToShow)
+
+                    return (
+                      <>
+                        {visible.map((method: any, i: number) => (
+                          <div
+                            key={i}
+                            className="h-8 bg-gray-50 border border-gray-200 rounded flex items-center justify-center overflow-hidden"
+                          >
+                            {method.type === "image" ? (
+                              <img
+                                src={method.value}
+                                className="w-full h-full object-contain p-0.5"
+                                alt={method.name}
+                              />
+                            ) : (
+                              iconMap[method.value] || <span className="text-xs">?</span>
+                            )}
+                          </div>
+                        ))}
+
+                        {/* 10+ Box */}
+                        {total > 10 && (
+                          <div className="h-8 bg-gray-100 border border-gray-300 rounded flex items-center justify-center">
+                            <span className="text-[12px] font-semibold text-gray-700">{total}+</span>
+                          </div>
+                        )}
+                      </>
+                    )
+                  })()}
                 </div>
               </div>
             </div>
@@ -211,14 +244,16 @@ export default function Home() {
   })
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white relative">
+      <div className="absolute top-0 left-0 w-full h-[260px] bg-gradient-to-b from-yellow-500/20 via-yellow-300/10 to-transparent pointer-events-none z-0"></div>
+
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 pt-4">
         <div className="container mx-auto px-4">
           <div className="bg-primary/10 backdrop-blur-md rounded-full border border-primary/20 shadow-lg">
             <div className="flex items-center justify-between px-6 h-16">
               <Link href="/" className="flex items-center gap-2">
-                <img src="https://i.imgur.com/3Uc2Rke.png" alt="bonus4you" className="h-10 w-auto object-contain" />
+                <img src="/assets/BONUS4YOU_DARK_BLURRY.png" alt="bonus4you" className="h-10 w-auto object-contain" />
               </Link>
 
               <nav className="hidden md:flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
@@ -250,7 +285,7 @@ export default function Home() {
 
               {/* CTA Button */}
               <Button className="hidden md:flex bg-primary hover:bg-primary/90 text-primary-foreground font-semibold transition-all duration-200 hover:scale-105 hover:shadow-lg">
-                Top Bonuses
+                <Link href="/login">Login</Link>
               </Button>
 
               {/* Mobile Menu Button */}
@@ -290,7 +325,7 @@ export default function Home() {
                     Reviews
                   </Link>
                   <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold mt-2">
-                    Top Bonuses
+                    <Link href="/login">Login</Link>
                   </Button>
                 </nav>
               </div>
@@ -329,8 +364,17 @@ export default function Home() {
           </div>
 
           {/* Scroll Indicator */}
-          <div className="mt-16 flex flex-col items-center animate-bounce">
-            <p className="text-sm text-muted-foreground mb-2 font-medium">Scroll to see casinos</p>
+          <div
+            onClick={() => {
+              document.getElementById("casinos")?.scrollIntoView({
+                behavior: "smooth",
+              })
+            }}
+            className="mt-16 flex flex-col items-center animate-bounce cursor-pointer"
+          >
+            <p className="text-sm text-muted-foreground mb-2 font-medium">
+              Scroll to see casinos
+            </p>
             <ChevronDown className="w-6 h-6 text-primary animate-pulse" />
           </div>
         </div>
@@ -439,7 +483,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="py-20 px-4">
+      <section className="py-20 px-4" id="casinos">
         <div className="container mx-auto max-w-7xl">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4 font-display">Browse All Casinos</h2>
@@ -544,7 +588,7 @@ export default function Home() {
           <div className="bg-primary/5 backdrop-blur-sm rounded-3xl border border-primary/10 shadow-lg px-8 py-10">
             <div className="flex flex-col items-center text-center mb-8">
               <div className="flex items-center gap-2 mb-3">
-                <img src="https://i.imgur.com/3Uc2Rke.png" alt="bonus4you" className="h-12 w-auto object-contain" />
+                <img src="/assets/BONUS4YOU_DARK_BLURRY.png" alt="bonus4you" className="h-12 w-auto object-contain" />
               </div>
               <p className="text-sm text-muted-foreground max-w-md">
                 Your trusted source for casino bonus comparisons and reviews since 2025

@@ -23,7 +23,7 @@ export default function ReviewsPage() {
           <div className="bg-primary/10 backdrop-blur-md rounded-full border border-primary/20 shadow-lg">
             <div className="flex items-center justify-between px-6 h-16">
               <Link href="/" className="flex items-center gap-2">
-                <img src="https://i.imgur.com/3Uc2Rke.png" alt="bonus4you" className="h-10 w-auto object-contain" />
+                <img src="/assets/BONUS4YOU_DARK_BLURRY.png" alt="bonus4you" className="h-10 w-auto object-contain" />
               </Link>
               <Link
                 href="/"

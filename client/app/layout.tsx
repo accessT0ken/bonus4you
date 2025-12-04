@@ -5,6 +5,7 @@ import localFont from "next/font/local"
 import { Analytics } from "@vercel/analytics/next"
 import { AuthProvider } from "@/contexts/auth-context"
 import "./globals.css"
+import { RadixToastProvider } from "@/components/radix-toast"
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -31,23 +32,18 @@ export const metadata: Metadata = {
   title: "Bonus4You - Best CS2 Skin Gambling & Trading Platforms",
   description:
     "Discover the best CS2 skin casinos, marketplaces, and trading platforms. Compare bonuses, features, and find your perfect match.",
-  generator: "v0.app",
   icons: {
     icon: [
       {
-        url: "/icon-light-32x32.png",
+        url: "/assets/BONUS4YOU_DARK_BLURRY.png",
         media: "(prefers-color-scheme: light)",
       },
       {
-        url: "/icon-dark-32x32.png",
+        url: "/assets/BONUS4YOU_BLURRY.png",
         media: "(prefers-color-scheme: dark)",
-      },
-      {
-        url: "/icon.svg",
-        type: "image/svg+xml",
-      },
+      }
     ],
-    apple: "/apple-icon.png",
+    apple: "/assets/BONUS4YOU_DARK_BLURRY.png",
   },
 }
 
@@ -60,8 +56,11 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${oswald.variable} ${poppins.variable} ${drukWide.variable} font-sans antialiased`}>
         <AuthProvider>
-          {children}
+          <RadixToastProvider>
+            {children}
+          </RadixToastProvider>
         </AuthProvider>
+        
         <Analytics />
       </body>
     </html>

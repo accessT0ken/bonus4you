@@ -111,7 +111,7 @@ export default function ReviewPage({ params }: { params: Promise<{ slug: string 
           <div className="max-w-7xl mx-auto">
             <div className="flex items-center justify-between px-6 py-3 bg-primary/10 backdrop-blur-md rounded-full border border-primary/20">
               <Link href="/" className="flex items-center gap-2">
-                <img src="https://i.imgur.com/3Uc2Rke.png" alt="Bonus4You" className="h-8" />
+                <img src="/assets/BONUS4YOU_DARK_BLURRY.png" alt="Bonus4You" className="h-8" />
               </Link>
               <div className="flex items-center gap-4">
                 {canEditReviews && (
@@ -216,7 +216,7 @@ export default function ReviewPage({ params }: { params: Promise<{ slug: string 
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between px-6 py-3 bg-primary/10 backdrop-blur-md rounded-full border border-primary/20">
             <Link href="/" className="flex items-center gap-2">
-              <img src="https://i.imgur.com/3Uc2Rke.png" alt="Bonus4You" className="h-8" />
+              <img src="/assets/BONUS4YOU_DARK_BLURRY.png" alt="Bonus4You" className="h-8" />
             </Link>
             <div className="flex items-center gap-4">
               {canEditReviews && (

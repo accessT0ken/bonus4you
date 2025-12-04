@@ -273,7 +273,7 @@ export default function CasinosPage() {
                 id="logo"
                 value={formData.logo}
                 onChange={(e) => setFormData({ ...formData, logo: e.target.value })}
-                placeholder="/clash-gg-logo.jpg"
+                placeholder="/"
               />
             </div>
 

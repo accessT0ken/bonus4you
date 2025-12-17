@@ -6,6 +6,8 @@ import { Analytics } from "@vercel/analytics/next"
 import { AuthProvider } from "@/contexts/auth-context"
 import "./globals.css"
 import { RadixToastProvider } from "@/components/radix-toast"
+import { Toaster } from "@/components/ui/toaster"
+import { ApiLoadingScreen } from "@/components/api-loading-screen"
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -55,11 +57,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${oswald.variable} ${poppins.variable} ${drukWide.variable} font-sans antialiased`}>
-        <AuthProvider>
-          <RadixToastProvider>
-            {children}
-          </RadixToastProvider>
-        </AuthProvider>
+        <ApiLoadingScreen>
+          <AuthProvider>
+            <RadixToastProvider>
+              {children}
+            </RadixToastProvider>
+            <Toaster />
+          </AuthProvider>
+        </ApiLoadingScreen>
         
         <Analytics />
       </body>

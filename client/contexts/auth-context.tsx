@@ -18,33 +18,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
 
   useEffect(() => {
-    // Check if user is logged in (check localStorage)
+    // Check if user is logged in (check localStorage and token)
     const authStatus = localStorage.getItem("admin_authenticated")
-    if (authStatus === "true") {
+    const token = localStorage.getItem("auth_token")
+    if (authStatus === "true" && token) {
       setIsAuthenticated(true)
     }
     setIsLoading(false)
   }, [])
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    // Simple authentication - replace with actual API call
-    // Check against users in localStorage
-    const { getUserByEmail } = await import("@/lib/user-data")
-    const user = getUserByEmail(email)
-    
-    // For demo: any user with password "admin123"
-    if (user && password === "admin123" && user.isActive) {
-      localStorage.setItem("admin_authenticated", "true")
-      localStorage.setItem("admin_email", email)
-      setIsAuthenticated(true)
-      return true
+    try {
+      const { loginUser } = await import("@/lib/user-data")
+      const result = await loginUser(email, password)
+      
+      if (result.user && result.token) {
+        localStorage.setItem("admin_authenticated", "true")
+        localStorage.setItem("admin_email", email)
+        setIsAuthenticated(true)
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('Login error:', error)
+      return false
     }
-    return false
   }
 
   const logout = () => {
+    const { logoutUser } = require("@/lib/user-data")
+    logoutUser()
     localStorage.removeItem("admin_authenticated")
-    localStorage.removeItem("admin_email")
     setIsAuthenticated(false)
     router.push("/login")
   }

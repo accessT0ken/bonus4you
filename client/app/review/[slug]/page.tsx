@@ -1,16 +1,17 @@
 "use client"
 
-import { Star, ChevronRight, ExternalLink, Edit2, Save, X, Settings, Lock } from "lucide-react"
+import { Star, ChevronRight, ExternalLink, Edit2, Save, X, Settings, Lock, Menu } from "lucide-react"
 import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { use } from "react"
-import { getCasinoBySlug, trackReviewRead, trackClaimBonusClick, updateSectionContent, updateCasinoProperties, type Casino } from "@/lib/casino-data"
+import { getCasinoBySlug, trackReviewRead, trackClaimBonusClick, updateSectionContent, updateCasinoProperties, gameModes, paymentMethods, type Casino } from "@/lib/casino-data"
 import { useAuth } from "@/contexts/auth-context"
 import { getCurrentUser, hasPermission } from "@/lib/user-data"
 import { RichTextEditor } from "@/components/rich-text-editor"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { LoadingScreen } from "@/components/loading-screen"
 
 export default function ReviewPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params)
@@ -20,45 +21,60 @@ export default function ReviewPage({ params }: { params: Promise<{ slug: string 
   const sidebarRef = useRef<HTMLDivElement>(null)
   const [casino, setCasino] = useState<Casino | null>(null)
   const { isAuthenticated } = useAuth()
-  const [currentUser, setCurrentUser] = useState(getCurrentUser())
+  const [currentUser, setCurrentUser] = useState<any>(null)
   const [editingSection, setEditingSection] = useState<string | null>(null)
   const [editContent, setEditContent] = useState<string>("")
   const [editorMode, setEditorMode] = useState(false)
   const [casinoEditData, setCasinoEditData] = useState<Partial<Casino>>({})
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    setCurrentUser(getCurrentUser())
-    // Check if editor mode should be enabled from URL
+    // Check URL for edit mode first (before user loads)
     if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search)
-      if (urlParams.get("edit") === "true" && hasPermission(getCurrentUser(), "edit_reviews")) {
+      if (urlParams.get("edit") === "true") {
         setEditorMode(true)
       }
     }
+
+    getCurrentUser().then((user) => {
+      setCurrentUser(user)
+      // Verify permission if editor mode is enabled
+      if (editorMode && user && !hasPermission(user, "edit_reviews")) {
+        setEditorMode(false)
+        alert("You don't have permission to edit reviews")
+      }
+    })
   }, [isAuthenticated])
 
   const canEditReviews = hasPermission(currentUser, "edit_reviews")
 
   useEffect(() => {
-    const casinoData = getCasinoBySlug(slug)
-    if (casinoData) {
-      setCasino(casinoData)
-      setCasinoEditData({
-        rating: casinoData.rating,
-        bonusText: casinoData.bonusText,
-        tagText: casinoData.tagText,
-        tagType: casinoData.tagType,
-        promoCode: casinoData.promoCode,
-        description: casinoData.description,
-      })
-      // Track review read only if has review and not in editor mode
-      if (casinoData.hasReview && !editorMode) {
-        trackReviewRead(slug)
+    getCasinoBySlug(slug).then((casinoData) => {
+      if (casinoData) {
+        setCasino(casinoData)
+        setCasinoEditData({
+          rating: casinoData.rating,
+          bonusText: casinoData.bonusText,
+          tagText: casinoData.tagText,
+          tagType: casinoData.tagType,
+          promoCode: casinoData.promoCode,
+          description: casinoData.description,
+        })
+        // Track review read only if has review and not in editor mode
+        if (casinoData.hasReview && !editorMode) {
+          trackReviewRead(slug)
+        }
+        setIsLoading(false)
+      } else {
+        // Redirect to home if casino doesn't exist
+        window.location.href = "/"
       }
-    } else {
-      // Redirect to home if casino doesn't exist
-      window.location.href = "/"
-    }
+    }).catch((error) => {
+      console.error('Failed to load casino:', error)
+      setIsLoading(false)
+    })
   }, [slug, editorMode])
 
   useEffect(() => {
@@ -81,8 +97,26 @@ export default function ReviewPage({ params }: { params: Promise<{ slug: string 
     }
   }
 
-  // Default sections if not in reviewContent
-  const sections = casino?.reviewContent?.sections || [
+  const toggleEditorMode = () => {
+    if (!canEditReviews) {
+      alert("You don't have permission to edit reviews")
+      return
+    }
+    setEditorMode(!editorMode)
+    if (!editorMode) {
+      // Enable editor mode - ensure review exists
+      if (casino && !casino.hasReview) {
+        updateCasinoProperties(slug, { hasReview: true })
+        const updatedCasino = getCasinoBySlug(slug)
+        if (updatedCasino) {
+          setCasino(updatedCasino)
+        }
+      }
+    }
+  }
+
+  // Default sections if not in reviewContent or if sections array is empty
+  const defaultSections = [
     { id: "overview", title: "Overview & History", content: "" },
     { id: "rewards", title: "Rewards & Promotions", content: "" },
     { id: "games", title: "Games Available", content: "" },
@@ -91,44 +125,174 @@ export default function ReviewPage({ params }: { params: Promise<{ slug: string 
     { id: "support", title: "Customer Support", content: "" },
     { id: "verdict", title: "Final Verdict", content: "" },
   ]
+  
+  const reviewSections = casino?.reviewContent?.sections
+  const allSections = (reviewSections && reviewSections.length > 0) 
+    ? reviewSections 
+    : defaultSections
 
-  if (!casino) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading review...</p>
-        </div>
-      </div>
-    )
+  // Filter sections to only show those with content
+  // In editor mode, show all sections so they can be edited
+  const sections = editorMode 
+    ? allSections // Show all sections in editor mode
+    : allSections.filter((section) => {
+        if (section.id === "overview") {
+          // Always show overview if casino has review
+          if (casino?.hasReview) return true
+          return section.content || casino?.reviewContent?.overview || casino?.description
+        }
+        if (section.id === "rewards") {
+          // Always show rewards section if casino has review (it will show bonus info)
+          if (casino?.hasReview) return true
+          return section.content && section.content.trim().length > 0
+        }
+        if (section.id === "games") {
+          // Show if has content or if casino has games
+          return section.content && section.content.trim().length > 0 || (casino?.gameModeIds && casino.gameModeIds.length > 0)
+        }
+        if (section.id === "payment") {
+          // Show if has content or if casino has payment methods
+          return section.content && section.content.trim().length > 0 || (casino?.paymentMethodIds && casino.paymentMethodIds.length > 0)
+        }
+        if (section.id === "verdict") {
+          return section.content || casino?.reviewContent?.verdict
+        }
+        return section.content && section.content.trim().length > 0
+      })
+
+  // Get game names from IDs
+  const casinoGameNames = casino?.gameModeIds
+    ? casino.gameModeIds.map(id => gameModes.find(gm => gm.id === id)?.name).filter(Boolean) as string[]
+    : []
+
+  // Get payment method names from IDs
+  const casinoPaymentMethodNames = casino?.paymentMethodIds
+    ? casino.paymentMethodIds.map(id => paymentMethods.find(pm => pm.id === id)?.name).filter(Boolean) as string[]
+    : []
+
+  if (isLoading || !casino) {
+    return <LoadingScreen message="Loading review..." />
   }
 
   // Show message if no review and not in editor mode
   if (!casino.hasReview && !editorMode) {
     return (
       <div className="min-h-screen bg-white">
-        <header className="fixed top-0 left-0 right-0 z-50 px-4 py-4">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex items-center justify-between px-6 py-3 bg-primary/10 backdrop-blur-md rounded-full border border-primary/20">
-              <Link href="/" className="flex items-center gap-2">
-                <img src="/assets/BONUS4YOU_DARK_BLURRY.png" alt="Bonus4You" className="h-8" />
-              </Link>
-              <div className="flex items-center gap-4">
-                {canEditReviews && (
-                  <Button
-                    onClick={toggleEditorMode}
-                    variant="default"
-                    size="sm"
-                    className="gap-2"
-                  >
-                    <Settings className="h-4 w-4" />
-                    Create Review
-                  </Button>
-                )}
-                <Link href="/" className="text-sm font-semibold text-gray-700 hover:text-primary transition-colors">
-                  ← Back to Home
+        <header className="fixed top-0 left-0 right-0 z-50 pt-4">
+          <div className="container mx-auto px-4">
+            <div className="bg-purple-50/80 backdrop-blur-md rounded-full border border-purple-200 shadow-lg">
+              <div className="flex items-center justify-between px-6 h-16">
+                <Link href="/" className="flex items-center gap-2">
+                  <img src="/assets/BONUS4YOU_DARK_BLURRY.png" alt="bonus4you" className="h-10 w-auto object-contain" />
                 </Link>
+
+                <nav className="hidden md:flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
+                  <Link
+                    href="/casinos/cs2"
+                    className="text-sm font-semibold text-foreground hover:text-primary transition-all duration-200 hover:scale-105"
+                  >
+                    CS2 Bonuses
+                  </Link>
+                  <Link
+                    href="/casinos/general"
+                    className="text-sm font-semibold text-foreground hover:text-primary transition-all duration-200 hover:scale-105"
+                  >
+                    Casino Bonuses
+                  </Link>
+                  <Link
+                    href="/guides"
+                    className="text-sm font-semibold text-foreground hover:text-primary transition-all duration-200 hover:scale-105"
+                  >
+                    Guides
+                  </Link>
+                  <Link
+                    href="/reviews"
+                    className="text-sm font-semibold text-foreground hover:text-primary transition-all duration-200 hover:scale-105"
+                  >
+                    Reviews
+                  </Link>
+                </nav>
+
+                <div className="flex items-center gap-4">
+                  {canEditReviews && (
+                    <Button
+                      onClick={toggleEditorMode}
+                      variant="default"
+                      size="sm"
+                      className="gap-2 hidden md:flex"
+                    >
+                      <Settings className="h-4 w-4" />
+                      Create Review
+                    </Button>
+                  )}
+                  <Link
+                    href="/"
+                    className="text-sm font-semibold text-foreground hover:text-primary transition-colors hidden md:flex"
+                  >
+                    ← Back to Home
+                  </Link>
+                  <Button className="hidden md:flex bg-primary hover:bg-primary/90 text-primary-foreground font-semibold transition-all duration-200 hover:scale-105 hover:shadow-lg">
+                    <Link href="/login">Login</Link>
+                  </Button>
+                  <button
+                    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                    className="md:hidden text-foreground hover:text-primary transition-colors"
+                  >
+                    {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                  </button>
+                </div>
               </div>
+
+              {mobileMenuOpen && (
+                <div className="md:hidden px-6 pb-6 animate-in slide-in-from-top duration-200">
+                  <nav className="flex flex-col gap-4">
+                    <Link
+                      href="/"
+                      className="text-sm font-semibold text-foreground hover:text-primary transition-colors py-2"
+                    >
+                      ← Back to Home
+                    </Link>
+                    <Link
+                      href="/casinos/cs2"
+                      className="text-sm font-semibold text-foreground hover:text-primary transition-colors py-2"
+                    >
+                      CS2 Bonuses
+                    </Link>
+                    <Link
+                      href="/casinos/general"
+                      className="text-sm font-semibold text-foreground hover:text-primary transition-colors py-2"
+                    >
+                      Casino Bonuses
+                    </Link>
+                    <Link
+                      href="/guides"
+                      className="text-sm font-semibold text-foreground hover:text-primary transition-colors py-2"
+                    >
+                      Guides
+                    </Link>
+                    <Link
+                      href="/reviews"
+                      className="text-sm font-semibold text-foreground hover:text-primary transition-colors py-2"
+                    >
+                      Reviews
+                    </Link>
+                    {canEditReviews && (
+                      <Button
+                        onClick={toggleEditorMode}
+                        variant="default"
+                        size="sm"
+                        className="gap-2"
+                      >
+                        <Settings className="h-4 w-4" />
+                        Create Review
+                      </Button>
+                    )}
+                    <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold mt-2">
+                      <Link href="/login">Login</Link>
+                    </Button>
+                  </nav>
+                </div>
+              )}
             </div>
           </div>
         </header>
@@ -148,7 +312,14 @@ export default function ReviewPage({ params }: { params: Promise<{ slug: string 
     setActiveSection(sectionId)
     const element = document.getElementById(sectionId)
     if (element) {
-      element.scrollIntoView({ behavior: "smooth", block: "start" })
+      const headerOffset = 100
+      const elementPosition = element.getBoundingClientRect().top
+      const offsetPosition = elementPosition + window.pageYOffset - headerOffset
+
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: "smooth"
+      })
     }
   }
 
@@ -164,15 +335,23 @@ export default function ReviewPage({ params }: { params: Promise<{ slug: string 
     setEditContent("")
   }
 
-  const saveSection = (sectionId: string) => {
-    if (updateSectionContent(slug, sectionId, editContent)) {
+  const saveSection = async (sectionId: string) => {
+    const success = await updateSectionContent(slug, sectionId, editContent)
+    if (success) {
       // Reload casino data
-      const updatedCasino = getCasinoBySlug(slug)
+      const updatedCasino = await getCasinoBySlug(slug)
       if (updatedCasino) {
         setCasino(updatedCasino)
+        // Update sections state to reflect changes
+        setCasinoEditData({
+          ...casinoEditData,
+          reviewContent: updatedCasino.reviewContent,
+        })
       }
       setEditingSection(null)
       setEditContent("")
+    } else {
+      alert("Failed to save section. Please try again.")
     }
   }
 
@@ -181,73 +360,172 @@ export default function ReviewPage({ params }: { params: Promise<{ slug: string 
     return section?.content || ""
   }
 
-  const saveCasinoProperties = () => {
-    if (casino && updateCasinoProperties(slug, casinoEditData)) {
-      const updatedCasino = getCasinoBySlug(slug)
-      if (updatedCasino) {
-        setCasino(updatedCasino)
-      }
-      alert("Casino properties saved!")
-    }
-  }
-
-  const toggleEditorMode = () => {
-    if (!canEditReviews) {
-      alert("You don't have permission to edit reviews")
-      return
-    }
-    setEditorMode(!editorMode)
-    if (!editorMode) {
-      // Enable editor mode - ensure review exists
-      if (casino && !casino.hasReview) {
-        updateCasinoProperties(slug, { hasReview: true })
-        const updatedCasino = getCasinoBySlug(slug)
+  const saveCasinoProperties = async () => {
+    if (casino) {
+      const success = await updateCasinoProperties(slug, casinoEditData)
+      if (success) {
+        const updatedCasino = await getCasinoBySlug(slug)
         if (updatedCasino) {
           setCasino(updatedCasino)
+          setCasinoEditData({
+            rating: updatedCasino.rating,
+            bonusText: updatedCasino.bonusText,
+            tagText: updatedCasino.tagText,
+            tagType: updatedCasino.tagType,
+            promoCode: updatedCasino.promoCode,
+            description: updatedCasino.description,
+          })
         }
+        alert("Casino properties saved!")
+      } else {
+        alert("Failed to save properties. Please try again.")
       }
     }
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white relative">
+      <div className="absolute top-0 left-0 w-full h-[260px] bg-gradient-to-b from-purple-600/30 via-fuchsia-500/15 to-transparent pointer-events-none z-0"></div>
+
       {/* Header with Navbar */}
-      <header className="fixed top-0 left-0 right-0 z-50 px-4 py-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between px-6 py-3 bg-primary/10 backdrop-blur-md rounded-full border border-primary/20">
-            <Link href="/" className="flex items-center gap-2">
-              <img src="/assets/BONUS4YOU_DARK_BLURRY.png" alt="Bonus4You" className="h-8" />
-            </Link>
-            <div className="flex items-center gap-4">
-              {canEditReviews && (
-                <Button
-                  onClick={toggleEditorMode}
-                  variant={editorMode ? "default" : "outline"}
-                  size="sm"
-                  className="gap-2"
-                >
-                  {editorMode ? (
-                    <>
-                      <Lock className="h-4 w-4" />
-                      Exit Editor
-                    </>
-                  ) : (
-                    <>
-                      <Settings className="h-4 w-4" />
-                      Editor Mode
-                    </>
-                  )}
-                </Button>
-              )}
-              <Link href="/" className="text-sm font-semibold text-gray-700 hover:text-primary transition-colors">
-                ← Back to Home
+      <header className="fixed top-0 left-0 right-0 z-50 pt-4">
+        <div className="container mx-auto px-4">
+          <div className="bg-purple-50/80 backdrop-blur-md rounded-full border border-purple-200 shadow-lg">
+            <div className="flex items-center justify-between px-6 h-16">
+              <Link href="/" className="flex items-center gap-2">
+                <img src="/assets/BONUS4YOU_DARK_BLURRY.png" alt="bonus4you" className="h-10 w-auto object-contain" />
               </Link>
+
+              <nav className="hidden md:flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
+                <Link
+                  href="/casinos/cs2"
+                  className="text-sm font-semibold text-foreground hover:text-primary transition-all duration-200 hover:scale-105"
+                >
+                  CS2 Bonuses
+                </Link>
+                <Link
+                  href="/casinos/general"
+                  className="text-sm font-semibold text-foreground hover:text-primary transition-all duration-200 hover:scale-105"
+                >
+                  Casino Bonuses
+                </Link>
+                <Link
+                  href="/guides"
+                  className="text-sm font-semibold text-foreground hover:text-primary transition-all duration-200 hover:scale-105"
+                >
+                  Guides
+                </Link>
+                <Link
+                  href="/reviews"
+                  className="text-sm font-semibold text-foreground hover:text-primary transition-all duration-200 hover:scale-105"
+                >
+                  Reviews
+                </Link>
+              </nav>
+
+              <div className="flex items-center gap-4">
+                {canEditReviews && (
+                  <Button
+                    onClick={toggleEditorMode}
+                    variant={editorMode ? "default" : "outline"}
+                    size="sm"
+                    className="gap-2 hidden md:flex"
+                  >
+                    {editorMode ? (
+                      <>
+                        <Lock className="h-4 w-4" />
+                        Exit Editor
+                      </>
+                    ) : (
+                      <>
+                        <Settings className="h-4 w-4" />
+                        Editor Mode
+                      </>
+                    )}
+                  </Button>
+                )}
+                <Link
+                  href="/"
+                  className="text-sm font-semibold text-foreground hover:text-primary transition-colors hidden md:flex"
+                >
+                  ← Back to Home
+                </Link>
+                <Button className="hidden md:flex bg-primary hover:bg-primary/90 text-primary-foreground font-semibold transition-all duration-200 hover:scale-105 hover:shadow-lg">
+                  <Link href="/login">Login</Link>
+                </Button>
+                <button
+                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  className="md:hidden text-foreground hover:text-primary transition-colors"
+                >
+                  {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                </button>
+              </div>
             </div>
+
+            {mobileMenuOpen && (
+              <div className="md:hidden px-6 pb-6 animate-in slide-in-from-top duration-200">
+                <nav className="flex flex-col gap-4">
+                  <Link
+                    href="/"
+                    className="text-sm font-semibold text-foreground hover:text-primary transition-colors py-2"
+                  >
+                    ← Back to Home
+                  </Link>
+                  <Link
+                    href="/casinos/cs2"
+                    className="text-sm font-semibold text-foreground hover:text-primary transition-colors py-2"
+                  >
+                    CS2 Bonuses
+                  </Link>
+                  <Link
+                    href="/casinos/general"
+                    className="text-sm font-semibold text-foreground hover:text-primary transition-colors py-2"
+                  >
+                    Casino Bonuses
+                  </Link>
+                  <Link
+                    href="/guides"
+                    className="text-sm font-semibold text-foreground hover:text-primary transition-colors py-2"
+                  >
+                    Guides
+                  </Link>
+                  <Link
+                    href="/reviews"
+                    className="text-sm font-semibold text-foreground hover:text-primary transition-colors py-2"
+                  >
+                    Reviews
+                  </Link>
+                  {canEditReviews && (
+                    <Button
+                      onClick={toggleEditorMode}
+                      variant={editorMode ? "default" : "outline"}
+                      size="sm"
+                      className="gap-2"
+                    >
+                      {editorMode ? (
+                        <>
+                          <Lock className="h-4 w-4" />
+                          Exit Editor
+                        </>
+                      ) : (
+                        <>
+                          <Settings className="h-4 w-4" />
+                          Editor Mode
+                        </>
+                      )}
+                    </Button>
+                  )}
+                  <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold mt-2">
+                    <Link href="/login">Login</Link>
+                  </Button>
+                </nav>
+              </div>
+            )}
           </div>
         </div>
       </header>
 
-      <div className="pt-24 pb-12 px-4">
+      <div className="pt-32 pb-12 px-4 relative z-10">
         <div className="max-w-7xl mx-auto">
           {/* Mobile Tabs */}
           <div className="xl:hidden mb-6">
@@ -319,9 +597,9 @@ export default function ReviewPage({ params }: { params: Promise<{ slug: string 
                           min="1"
                           max="5"
                           step="0.1"
-                          value={casinoEditData.rating || casino.rating}
+                          value={casinoEditData.rating ?? casino.rating ?? 5}
                           onChange={(e) =>
-                            setCasinoEditData({ ...casinoEditData, rating: parseFloat(e.target.value) })
+                            setCasinoEditData({ ...casinoEditData, rating: parseFloat(e.target.value) || 5 })
                           }
                           className="w-16 h-8 text-center"
                         />
@@ -364,7 +642,7 @@ export default function ReviewPage({ params }: { params: Promise<{ slug: string 
                       <div>
                         <Label className="text-xs mb-1 block">Bonus Text</Label>
                         <Input
-                          value={casinoEditData.bonusText || casino.bonusText}
+                          value={casinoEditData.bonusText ?? casino.bonusText ?? ""}
                           onChange={(e) =>
                             setCasinoEditData({ ...casinoEditData, bonusText: e.target.value })
                           }
@@ -375,7 +653,7 @@ export default function ReviewPage({ params }: { params: Promise<{ slug: string 
                       <div>
                         <Label className="text-xs mb-1 block">Promo Code</Label>
                         <Input
-                          value={casinoEditData.promoCode || casino.promoCode || ""}
+                          value={casinoEditData.promoCode ?? casino.promoCode ?? ""}
                           onChange={(e) =>
                             setCasinoEditData({ ...casinoEditData, promoCode: e.target.value })
                           }
@@ -386,7 +664,7 @@ export default function ReviewPage({ params }: { params: Promise<{ slug: string 
                       <div>
                         <Label className="text-xs mb-1 block">Tag Type</Label>
                         <select
-                          value={casinoEditData.tagType || casino.tagType}
+                          value={casinoEditData.tagType ?? casino.tagType ?? "free"}
                           onChange={(e) =>
                             setCasinoEditData({
                               ...casinoEditData,
@@ -402,7 +680,7 @@ export default function ReviewPage({ params }: { params: Promise<{ slug: string 
                       <div>
                         <Label className="text-xs mb-1 block">Tag Text</Label>
                         <Input
-                          value={casinoEditData.tagText || casino.tagText}
+                          value={casinoEditData.tagText ?? casino.tagText ?? ""}
                           onChange={(e) =>
                             setCasinoEditData({ ...casinoEditData, tagText: e.target.value })
                           }
@@ -442,22 +720,24 @@ export default function ReviewPage({ params }: { params: Promise<{ slug: string 
               </div>
 
               {/* Navigation Menu */}
-              <div className="bg-gradient-to-b from-gray-50 to-white rounded-2xl border border-gray-200 overflow-hidden">
-                <ul>
-                  {sections.map((section, index: number) => (
-                    <li key={section.id}>
-                      <button
-                        onClick={() => scrollToSection(section.id)}
-                        className={`w-full text-left px-4 py-3 text-sm font-semibold transition-colors ${
-                          activeSection === section.id ? "bg-primary/10 text-primary" : "text-gray-600 hover:bg-gray-50"
-                        } ${index !== 0 ? "border-t border-gray-100" : ""}`}
-                      >
-                        {section.title}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              {sections.length > 0 && (
+                <div className="bg-gradient-to-b from-gray-50 to-white rounded-2xl border border-gray-200 overflow-hidden">
+                  <ul>
+                    {sections.map((section, index: number) => (
+                      <li key={section.id}>
+                        <button
+                          onClick={() => scrollToSection(section.id)}
+                          className={`w-full text-left px-4 py-3 text-sm font-semibold transition-all duration-300 ${
+                            activeSection === section.id ? "bg-primary/10 text-primary" : "text-gray-600 hover:bg-gray-50"
+                          } ${index !== 0 ? "border-t border-gray-100" : ""}`}
+                        >
+                          {section.title}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </aside>
 
             {/* Main Content */}
@@ -465,7 +745,8 @@ export default function ReviewPage({ params }: { params: Promise<{ slug: string 
               {activeTab === "overview" && (
                 <div className="space-y-8">
                   {/* Overview Section */}
-                  <section id="overview" className="bg-white rounded-2xl border border-gray-200 p-8 relative">
+                  {sections.find(s => s.id === "overview") && (
+                  <section id="overview" className="bg-white rounded-2xl border border-gray-200 p-8 relative scroll-mt-24">
                     <div className="flex items-center justify-between mb-4">
                       <h2 className="text-2xl font-bold text-gray-900">What is {casino.name}?</h2>
                       {editorMode && canEditReviews && editingSection !== "overview" && (
@@ -523,9 +804,11 @@ export default function ReviewPage({ params }: { params: Promise<{ slug: string 
                       </div>
                     </div>
                   </section>
+                  )}
 
                   {/* Rewards Section */}
-                  <section id="rewards" className="bg-white rounded-2xl border border-gray-200 p-8">
+                  {sections.find(s => s.id === "rewards") && (
+                  <section id="rewards" className="bg-white rounded-2xl border border-gray-200 p-8 scroll-mt-24">
                     <h2 className="text-2xl font-bold text-gray-900 mb-4">What Rewards Does {casino.name} Offer?</h2>
                     <div className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl p-6 border border-primary/20">
                       <h3 className="text-xl font-bold text-gray-900 mb-2">Welcome Bonus</h3>
@@ -543,40 +826,114 @@ export default function ReviewPage({ params }: { params: Promise<{ slug: string 
                       </button>
                     </div>
                   </section>
+                  )}
 
                   {/* Games Section */}
-                  {casino.games && casino.games.length > 0 && (
-                    <section id="games" className="bg-white rounded-2xl border border-gray-200 p-8">
-                      <h2 className="text-2xl font-bold text-gray-900 mb-4">Games Available</h2>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        {casino.games.map((game: string) => (
-                          <div key={game} className="bg-gray-50 rounded-xl p-4 text-center font-semibold text-gray-700">
-                            {game}
-                          </div>
-                        ))}
+                  {sections.find(s => s.id === "games") && (editorMode || casinoGameNames.length > 0) && (
+                    <section id="games" className="bg-white rounded-2xl border border-gray-200 p-8 scroll-mt-24">
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-2xl font-bold text-gray-900">Games Available</h2>
+                        {editorMode && canEditReviews && editingSection !== "games" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => startEditing("games")}
+                            className="gap-2"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                            Edit
+                          </Button>
+                        )}
                       </div>
+                      {editingSection === "games" ? (
+                        <RichTextEditor
+                          content={getSectionContent("games") || ""}
+                          onSave={(content) => {
+                            setEditContent(content)
+                            saveSection("games")
+                          }}
+                          onCancel={cancelEditing}
+                        />
+                      ) : (
+                        <>
+                          {casinoGameNames.length > 0 ? (
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                              {casinoGameNames.map((game: string) => (
+                                <div key={game} className="bg-gray-50 rounded-xl p-4 text-center font-semibold text-gray-700">
+                                  {game}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-gray-500 italic">No games information available. Click Edit to add content.</div>
+                          )}
+                          {getSectionContent("games") && (
+                            <div
+                              className="text-gray-600 leading-relaxed mt-4 prose prose-sm max-w-none"
+                              dangerouslySetInnerHTML={{ __html: getSectionContent("games") }}
+                            />
+                          )}
+                        </>
+                      )}
                     </section>
                   )}
 
                   {/* Payment Methods Section */}
-                  {casino.paymentMethods && casino.paymentMethods.length > 0 && (
-                    <section id="payment" className="bg-white rounded-2xl border border-gray-200 p-8">
-                      <h2 className="text-2xl font-bold text-gray-900 mb-4">Payment Methods</h2>
-                      <div className="flex flex-wrap gap-3">
-                        {casino.paymentMethods.map((method: string) => (
-                          <div
-                            key={method}
-                            className="bg-gradient-to-br from-gray-50 to-white rounded-xl px-4 py-3 border border-gray-200 font-semibold text-gray-700"
+                  {sections.find(s => s.id === "payment") && (editorMode || casinoPaymentMethodNames.length > 0) && (
+                    <section id="payment" className="bg-white rounded-2xl border border-gray-200 p-8 scroll-mt-24">
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-2xl font-bold text-gray-900">Payment Methods</h2>
+                        {editorMode && canEditReviews && editingSection !== "payment" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => startEditing("payment")}
+                            className="gap-2"
                           >
-                            {method}
-                          </div>
-                        ))}
+                            <Edit2 className="h-4 w-4" />
+                            Edit
+                          </Button>
+                        )}
                       </div>
+                      {editingSection === "payment" ? (
+                        <RichTextEditor
+                          content={getSectionContent("payment") || ""}
+                          onSave={(content) => {
+                            setEditContent(content)
+                            saveSection("payment")
+                          }}
+                          onCancel={cancelEditing}
+                        />
+                      ) : (
+                        <>
+                          {casinoPaymentMethodNames.length > 0 && (
+                            <div className="flex flex-wrap gap-3 mb-4">
+                              {casinoPaymentMethodNames.map((method: string) => (
+                                <div
+                                  key={method}
+                                  className="bg-gradient-to-br from-gray-50 to-white rounded-xl px-4 py-3 border border-gray-200 font-semibold text-gray-700"
+                                >
+                                  {method}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {getSectionContent("payment") ? (
+                            <div
+                              className="text-gray-600 leading-relaxed prose prose-sm max-w-none"
+                              dangerouslySetInnerHTML={{ __html: getSectionContent("payment") }}
+                            />
+                          ) : (
+                            editorMode && <div className="text-gray-500 italic">No payment methods information available. Click Edit to add content.</div>
+                          )}
+                        </>
+                      )}
                     </section>
                   )}
 
                   {/* Security Section */}
-                  <section id="security" className="bg-white rounded-2xl border border-gray-200 p-8 relative">
+                  {sections.find(s => s.id === "security") && (
+                  <section id="security" className="bg-white rounded-2xl border border-gray-200 p-8 relative scroll-mt-24">
                     <div className="flex items-center justify-between mb-4">
                       <h2 className="text-2xl font-bold text-gray-900">Security & Trust</h2>
                       {editorMode && canEditReviews && editingSection !== "security" && (
@@ -613,9 +970,11 @@ export default function ReviewPage({ params }: { params: Promise<{ slug: string 
                       />
                     )}
                   </section>
+                  )}
 
                   {/* Support Section */}
-                  <section id="support" className="bg-white rounded-2xl border border-gray-200 p-8 relative">
+                  {sections.find(s => s.id === "support") && (
+                  <section id="support" className="bg-white rounded-2xl border border-gray-200 p-8 relative scroll-mt-24">
                     <div className="flex items-center justify-between mb-4">
                       <h2 className="text-2xl font-bold text-gray-900">Customer Support</h2>
                       {editorMode && canEditReviews && editingSection !== "support" && (
@@ -648,11 +1007,13 @@ export default function ReviewPage({ params }: { params: Promise<{ slug: string 
                       />
                     )}
                   </section>
+                  )}
 
                   {/* Final Verdict Section */}
+                  {sections.find(s => s.id === "verdict") && (
                   <section
                     id="verdict"
-                    className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl border-2 border-primary/20 p-8 relative"
+                    className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl border-2 border-primary/20 p-8 relative scroll-mt-24"
                   >
                     <div className="flex items-center justify-between mb-4">
                       <h2 className="text-2xl font-bold text-gray-900">Final Verdict</h2>
@@ -714,6 +1075,7 @@ export default function ReviewPage({ params }: { params: Promise<{ slug: string 
                       Visit {casino.name} <ExternalLink className="w-5 h-5" />
                     </button>
                   </section>
+                  )}
                 </div>
               )}
 

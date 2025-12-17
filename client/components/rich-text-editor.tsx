@@ -61,8 +61,8 @@ export function RichTextEditor({ content, onSave, onCancel }: RichTextEditorProp
 
   // Set initial content
   useEffect(() => {
-    if (editorRef.current && content) {
-      editorRef.current.innerHTML = content
+    if (editorRef.current) {
+      editorRef.current.innerHTML = content || ""
     }
   }, [content])
 

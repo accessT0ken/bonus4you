@@ -11,12 +11,23 @@ import { Plus, Edit, Trash2, Eye, FileText } from "lucide-react"
 import { getCasinos, saveCasinos, type Casino } from "@/lib/casino-data"
 import { getCurrentUser, hasPermission } from "@/lib/user-data"
 import Link from "next/link"
+import { useToast } from "@/hooks/use-toast"
 
 export default function CasinosPage() {
+  const { toast } = useToast()
   const [casinos, setCasinos] = useState<Casino[]>([])
   const [currentUser, setCurrentUser] = useState(getCurrentUser())
   const [isCreating, setIsCreating] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [filterOptions, setFilterOptions] = useState<{
+    categories: string[]
+    statuses: string[]
+    countries: string[]
+  }>({
+    categories: [],
+    statuses: [],
+    countries: [],
+  })
   const [formData, setFormData] = useState<Partial<Casino>>({
     name: "",
     slug: "",
@@ -44,8 +55,36 @@ export default function CasinosPage() {
   })
 
   useEffect(() => {
-    setCasinos(getCasinos())
-    setCurrentUser(getCurrentUser())
+    // Fetch all casinos (including drafts) for admin panel
+    getCasinos({ status: 'all' }).then((casinosList) => {
+      setCasinos(casinosList)
+    }).catch((error) => {
+      console.error('Failed to load casinos:', error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to load casinos. Please refresh the page.",
+      })
+    })
+    
+    getCurrentUser().then((user) => {
+      setCurrentUser(user)
+    })
+
+    // Load filter options from API
+    import("@/lib/api-client").then(({ casinosApi }) => {
+      casinosApi.getFilterOptions().then((response) => {
+        if (response.data) {
+          setFilterOptions({
+            categories: response.data.categories || [],
+            statuses: response.data.statuses || [],
+            countries: response.data.countries || [],
+          })
+        }
+      }).catch((error) => {
+        console.error('Failed to load filter options:', error)
+      })
+    })
   }, [])
 
   const canManageCasinos = hasPermission(currentUser, "manage_casinos")
@@ -86,80 +125,134 @@ export default function CasinosPage() {
     window.location.href = `/review/${casino.slug}?edit=true`
   }
 
-  const handleSave = () => {
-    const updatedCasinos = [...casinos]
-
-    if (editingId) {
-      // Update existing casino
-      const index = updatedCasinos.findIndex((c) => c.id === editingId)
-      if (index !== -1) {
-        updatedCasinos[index] = {
-          ...updatedCasinos[index],
-          ...formData,
-          id: editingId,
-          stats: updatedCasinos[index].stats,
-          updatedAt: new Date().toISOString().split("T")[0],
-        }
-      }
-    } else {
-      // Create new casino
-      const newCasino: Casino = {
-        id: Date.now().toString(),
-        name: formData.name || "",
-        slug: formData.slug || "",
-        logo: formData.logo || "",
-        tagType: formData.tagType || "free",
-        tagText: formData.tagText || "",
-        rating: formData.rating || 5,
-        bonusText: formData.bonusText || "",
-        rewardsCount: formData.rewardsCount || 0,
-        category: formData.category || "cs2",
-        country: formData.country,
-        hasReview: formData.hasReview || false,
-        status: formData.status || "draft",
-        description: formData.description,
-        founded: formData.founded,
-        license: formData.license,
-        minDeposit: formData.minDeposit,
-        paymentMethods: formData.paymentMethods || [],
-        games: formData.games || [],
-        promoCode: formData.promoCode,
-        reviewContent: formData.reviewContent,
-        stats: {
-          landingPageViews: 0,
-          claimBonusClicks: 0,
-          reviewReads: 0,
-        },
-        createdAt: new Date().toISOString().split("T")[0],
-        updatedAt: new Date().toISOString().split("T")[0],
-      }
-      updatedCasinos.push(newCasino)
+  const handleSave = async () => {
+    if (!formData.name || !formData.slug) {
+      toast({
+        variant: "warning",
+        title: "Validation Error",
+        description: "Please fill in casino name and slug fields.",
+      })
+      return
     }
 
-    saveCasinos(updatedCasinos)
-    setCasinos(updatedCasinos)
-    setIsCreating(false)
-    setEditingId(null)
-    setFormData({
-      name: "",
-      slug: "",
-      logo: "",
-      tagType: "free",
-      tagText: "",
-      rating: 5,
-      bonusText: "",
-      rewardsCount: 0,
-      category: "cs2",
-      hasReview: false,
-      status: "draft",
-    })
+    try {
+      const { casinosApi } = await import("@/lib/api-client")
+      const { clearCasinoCache } = await import("@/lib/casino-data")
+
+      if (editingId) {
+        // Update existing casino
+        await casinosApi.update(editingId, {
+          name: formData.name,
+          slug: formData.slug,
+          logo: formData.logo,
+          tagType: formData.tagType,
+          tagText: formData.tagText,
+          rating: formData.rating,
+          bonusText: formData.bonusText,
+          rewardsCount: formData.rewardsCount,
+          category: formData.category,
+          country: formData.country,
+          hasReview: formData.hasReview,
+          status: formData.status,
+          description: formData.description,
+          founded: formData.founded,
+          license: formData.license,
+          minDeposit: formData.minDeposit,
+          promoCode: formData.promoCode,
+          reviewContent: formData.reviewContent,
+        })
+        clearCasinoCache()
+        toast({
+          variant: "success",
+          title: "Casino Updated",
+          description: "Casino has been successfully updated.",
+        })
+      } else {
+        // Create new casino
+        await casinosApi.create({
+          name: formData.name,
+          slug: formData.slug,
+          logo: formData.logo,
+          tagType: formData.tagType || "free",
+          tagText: formData.tagText || "",
+          rating: formData.rating || 5,
+          bonusText: formData.bonusText || "",
+          rewardsCount: formData.rewardsCount || 0,
+          category: formData.category || "cs2",
+          country: formData.country,
+          hasReview: formData.hasReview || false,
+          status: formData.status || "draft",
+          description: formData.description,
+          founded: formData.founded,
+          license: formData.license,
+          minDeposit: formData.minDeposit,
+          promoCode: formData.promoCode,
+          reviewContent: formData.reviewContent,
+        })
+        clearCasinoCache()
+        toast({
+          variant: "success",
+          title: "Casino Created",
+          description: "New casino has been successfully created.",
+        })
+      }
+
+      // Reload casinos (fetch all including drafts)
+      const { getCasinos } = await import("@/lib/casino-data")
+      const updatedCasinos = await getCasinos({ status: 'all' })
+      setCasinos(updatedCasinos)
+      setIsCreating(false)
+      setEditingId(null)
+      setFormData({
+        name: "",
+        slug: "",
+        logo: "",
+        tagType: "free",
+        tagText: "",
+        rating: 5,
+        bonusText: "",
+        rewardsCount: 0,
+        category: "cs2",
+        hasReview: false,
+        status: "draft",
+      })
+    } catch (error: any) {
+      console.error('Failed to save casino:', error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to save casino. Please try again.",
+      })
+    }
   }
 
-  const handleDelete = (id: string) => {
-    if (confirm("Are you sure you want to delete this casino?")) {
-      const updatedCasinos = casinos.filter((c) => c.id !== id)
-      saveCasinos(updatedCasinos)
+  const handleDelete = async (id: string) => {
+    const confirmed = window.confirm("Are you sure you want to delete this casino?")
+    if (!confirmed) return
+
+    try {
+      const { casinosApi } = await import("@/lib/api-client")
+      const { clearCasinoCache, getCasinos } = await import("@/lib/casino-data")
+      
+      await casinosApi.delete(id)
+      clearCasinoCache()
+      
+      // Fetch all casinos (including drafts) for admin panel
+      const updatedCasinos = await getCasinos({ status: 'all' })
       setCasinos(updatedCasinos)
+      
+      toast({
+        variant: "success",
+        title: "Casino Deleted",
+        description: "Casino has been successfully deleted.",
+      })
+    } catch (error: any) {
+      console.error('Failed to delete casino:', error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to delete casino. Please try again.",
+      })
     }
   }
 
@@ -183,10 +276,21 @@ export default function CasinosPage() {
 
   const addPaymentMethod = () => {
     const method = prompt("Enter payment method:")
-    if (method) {
+    if (method && method.trim()) {
       setFormData({
         ...formData,
-        paymentMethods: [...(formData.paymentMethods || []), method],
+        paymentMethods: [...(formData.paymentMethods || []), method.trim()],
+      })
+      toast({
+        variant: "success",
+        title: "Payment Method Added",
+        description: `${method.trim()} has been added.`,
+      })
+    } else if (method !== null) {
+      toast({
+        variant: "warning",
+        title: "Invalid Input",
+        description: "Please enter a valid payment method name.",
       })
     }
   }
@@ -199,10 +303,21 @@ export default function CasinosPage() {
 
   const addGame = () => {
     const game = prompt("Enter game name:")
-    if (game) {
+    if (game && game.trim()) {
       setFormData({
         ...formData,
-        games: [...(formData.games || []), game],
+        games: [...(formData.games || []), game.trim()],
+      })
+      toast({
+        variant: "success",
+        title: "Game Added",
+        description: `${game.trim()} has been added.`,
+      })
+    } else if (game !== null) {
+      toast({
+        variant: "warning",
+        title: "Invalid Input",
+        description: "Please enter a valid game name.",
       })
     }
   }
@@ -343,8 +458,18 @@ export default function CasinosPage() {
                   onChange={(e) => setFormData({ ...formData, category: e.target.value as "cs2" | "general" })}
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
                 >
-                  <option value="cs2">CS2</option>
-                  <option value="general">General</option>
+                  {filterOptions.categories.length > 0 ? (
+                    filterOptions.categories.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="cs2">CS2</option>
+                      <option value="general">General</option>
+                    </>
+                  )}
                 </select>
               </div>
               {formData.category === "general" && (
@@ -359,8 +484,18 @@ export default function CasinosPage() {
                     className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
                   >
                     <option value="">All</option>
-                    <option value="latvia">Latvia</option>
-                    <option value="usa">USA</option>
+                    {filterOptions.countries.length > 0 ? (
+                      filterOptions.countries.map((country) => (
+                        <option key={country} value={country}>
+                          {country.charAt(0).toUpperCase() + country.slice(1)}
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="latvia">Latvia</option>
+                        <option value="usa">USA</option>
+                      </>
+                    )}
                   </select>
                 </div>
               )}
@@ -473,8 +608,18 @@ export default function CasinosPage() {
                 onChange={(e) => setFormData({ ...formData, status: e.target.value as "draft" | "published" })}
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
               >
-                <option value="draft">Draft</option>
-                <option value="published">Published</option>
+                {filterOptions.statuses.length > 0 ? (
+                  filterOptions.statuses.map((status) => (
+                    <option key={status} value={status}>
+                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                    </option>
+                  ))
+                ) : (
+                  <>
+                    <option value="draft">Draft</option>
+                    <option value="published">Published</option>
+                  </>
+                )}
               </select>
             </div>
 

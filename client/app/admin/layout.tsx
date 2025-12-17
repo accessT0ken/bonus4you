@@ -44,6 +44,11 @@ const menuItems = [
     href: "/admin/casinos",
   },
   {
+    title: "Blogs & Guides",
+    icon: FileText,
+    href: "/admin/blogs",
+  },
+  {
     title: "Stats",
     icon: BarChart3,
     href: "/admin/stats",

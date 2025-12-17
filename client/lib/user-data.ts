@@ -1,6 +1,6 @@
 // User data structure and management
-export type UserRole = "admin" | "editor" | "viewer"
-export type Permission = "manage_users" | "manage_casinos" | "edit_reviews" | "view_stats" | "publish_content"
+export type UserRole = "moderator" | "admin" | "owner"
+export type Permission = "manage_users" | "manage_casinos" | "edit_reviews" | "view_stats" | "publish_content" | "manage_system"
 
 export interface User {
   id: string
@@ -15,117 +15,225 @@ export interface User {
 
 // Role permissions mapping
 export const rolePermissions: Record<UserRole, Permission[]> = {
+  moderator: ["manage_casinos", "edit_reviews", "view_stats", "publish_content"],
   admin: ["manage_users", "manage_casinos", "edit_reviews", "view_stats", "publish_content"],
-  editor: ["manage_casinos", "edit_reviews", "view_stats", "publish_content"],
-  viewer: ["view_stats"],
+  owner: ["manage_users", "manage_casinos", "edit_reviews", "view_stats", "publish_content", "manage_system"],
 }
 
-// Default users
-export const defaultUsers: User[] = [
-  {
-    id: "1",
-    email: "admin@bonus4you.com",
-    name: "Admin User",
-    role: "admin",
-    permissions: rolePermissions.admin,
-    createdAt: "2025-01-01",
-    lastLogin: new Date().toISOString(),
-    isActive: true,
-  },
-  {
-    id: "2",
-    email: "editor@bonus4you.com",
-    name: "Editor User",
-    role: "editor",
-    permissions: rolePermissions.editor,
-    createdAt: "2025-01-05",
-    isActive: true,
-  },
-]
-
-// Get users from localStorage or return defaults
-export function getUsers(): User[] {
-  if (typeof window === "undefined") return defaultUsers
-  const stored = localStorage.getItem("users")
-  if (stored) {
-    try {
-      return JSON.parse(stored)
-    } catch {
-      return defaultUsers
+// Transform API response to User format
+function transformApiUser(apiUser: any): User {
+  // Parse permissions if they come as JSON string
+  let permissions: Permission[] = []
+  if (apiUser.permissions) {
+    if (typeof apiUser.permissions === 'string') {
+      try {
+        permissions = JSON.parse(apiUser.permissions)
+      } catch (e) {
+        console.error('Failed to parse permissions:', e)
+        permissions = []
+      }
+    } else if (Array.isArray(apiUser.permissions)) {
+      permissions = apiUser.permissions
     }
   }
-  // Initialize with defaults
-  localStorage.setItem("users", JSON.stringify(defaultUsers))
-  return defaultUsers
+  
+  return {
+    id: String(apiUser.id),
+    email: apiUser.email,
+    name: apiUser.name,
+    role: apiUser.role,
+    permissions,
+    createdAt: apiUser.created_at || apiUser.createdAt,
+    lastLogin: apiUser.last_login || apiUser.lastLogin,
+    isActive: apiUser.isActive !== undefined ? apiUser.isActive : (apiUser.is_active === 1),
+  }
 }
 
-// Save users to localStorage
-export function saveUsers(users: User[]) {
-  if (typeof window === "undefined") return
-  localStorage.setItem("users", JSON.stringify(users))
+// Get users from API
+export async function getUsers(): Promise<User[]> {
+  if (typeof window === "undefined") {
+    return []
+  }
+
+  try {
+    const { usersApi } = await import('./api-client')
+    // Fetch all users by making multiple requests if needed
+    // First get total count, then fetch in batches
+    let allUsers: User[] = []
+    let page = 1
+    const limit = 100 // Max allowed by API
+    
+    while (true) {
+      const response = await usersApi.getAll({ page, limit })
+      
+      if (response.data && Array.isArray(response.data)) {
+        const users = response.data.map(transformApiUser)
+        allUsers = [...allUsers, ...users]
+        
+        // If we got fewer users than the limit, we've reached the end
+        if (users.length < limit) {
+          break
+        }
+        page++
+      } else {
+        break
+      }
+      
+      // Safety check to prevent infinite loops
+      if (page > 100) {
+        break
+      }
+    }
+    
+    return allUsers
+  } catch (error) {
+    console.error('Failed to fetch users:', error)
+    return []
+  }
 }
 
 // Get user by email
-export function getUserByEmail(email: string): User | undefined {
-  const users = getUsers()
+export async function getUserByEmail(email: string): Promise<User | undefined> {
+  const users = await getUsers()
   return users.find((u) => u.email === email)
 }
 
 // Create new user
-export function createUser(user: Omit<User, "id" | "createdAt">): User {
-  const users = getUsers()
-  const newUser: User = {
-    ...user,
-    id: Date.now().toString(),
-    createdAt: new Date().toISOString().split("T")[0],
-    permissions: rolePermissions[user.role],
+export async function createUser(user: Omit<User, "id" | "createdAt">): Promise<User> {
+  if (typeof window === "undefined") {
+    throw new Error('Cannot create user on server side')
   }
-  users.push(newUser)
-  saveUsers(users)
-  return newUser
+
+  try {
+    const { usersApi } = await import('./api-client')
+    const response = await usersApi.create({
+      email: user.email,
+      name: user.name,
+      password: 'temp-password', // Should be provided
+      role: user.role,
+    })
+    
+    if (response.data) {
+      return transformApiUser(response.data)
+    }
+    
+    throw new Error('Failed to create user')
+  } catch (error) {
+    console.error('Failed to create user:', error)
+    throw error
+  }
 }
 
 // Update user
-export function updateUser(userId: string, updates: Partial<User>): boolean {
-  const users = getUsers()
-  const index = users.findIndex((u) => u.id === userId)
-  if (index !== -1) {
-    users[index] = {
-      ...users[index],
-      ...updates,
-      // Update permissions based on role if role changed
-      permissions: updates.role ? rolePermissions[updates.role] : users[index].permissions,
-    }
-    saveUsers(users)
-    return true
+export async function updateUser(userId: string, updates: Partial<User>): Promise<boolean> {
+  if (typeof window === "undefined") {
+    return false
   }
-  return false
+
+  try {
+    const { usersApi } = await import('./api-client')
+    
+    const apiUpdates: any = {}
+    if (updates.name !== undefined) apiUpdates.name = updates.name
+    if (updates.role !== undefined) apiUpdates.role = updates.role
+    if (updates.isActive !== undefined) apiUpdates.isActive = updates.isActive
+    if (updates.password !== undefined) apiUpdates.password = updates.password
+
+    await usersApi.update(userId, apiUpdates)
+    return true
+  } catch (error) {
+    console.error('Failed to update user:', error)
+    return false
+  }
 }
 
 // Delete user
-export function deleteUser(userId: string): boolean {
-  const users = getUsers()
-  const filtered = users.filter((u) => u.id !== userId)
-  if (filtered.length < users.length) {
-    saveUsers(filtered)
-    return true
+export async function deleteUser(userId: string): Promise<boolean> {
+  if (typeof window === "undefined") {
+    return false
   }
-  return false
+
+  try {
+    const { usersApi } = await import('./api-client')
+    await usersApi.delete(userId)
+    return true
+  } catch (error) {
+    console.error('Failed to delete user:', error)
+    return false
+  }
 }
 
 // Check if user has permission
 export function hasPermission(user: User | null, permission: Permission): boolean {
-  if (!user || !user.isActive) return false
+  if (!user || !user.isActive) {
+    return false
+  }
+  
+  // Owner role should have all permissions
+  if (user.role === 'owner') {
+    return true
+  }
+  
   return user.permissions.includes(permission)
 }
 
-// Get current user from auth
-export function getCurrentUser(): User | null {
-  if (typeof window === "undefined") return null
-  const email = localStorage.getItem("admin_email")
-  if (email) {
-    return getUserByEmail(email) || null
+// Get current user from auth token
+export async function getCurrentUser(): Promise<User | null> {
+  if (typeof window === "undefined") {
+    return null
   }
-  return null
+
+  const token = localStorage.getItem('auth_token')
+  const userEmail = localStorage.getItem('admin_email')
+  
+  if (!token || !userEmail) {
+    return null
+  }
+
+  try {
+    return await getUserByEmail(userEmail)
+  } catch (error) {
+    console.error('Failed to get current user:', error)
+    return null
+  }
 }
 
+// Login user
+export async function loginUser(email: string, password: string): Promise<{ user: User; token: string }> {
+  if (typeof window === "undefined") {
+    throw new Error('Cannot login on server side')
+  }
+
+  try {
+    const { usersApi } = await import('./api-client')
+    const response = await usersApi.login(email, password)
+    
+    if (response.data && response.data.user && response.data.token) {
+      const user = transformApiUser(response.data.user)
+      
+      // Store token and email
+      localStorage.setItem('auth_token', response.data.token)
+      localStorage.setItem('admin_email', user.email)
+      
+      return {
+        user,
+        token: response.data.token,
+      }
+    }
+    
+    throw new Error('Login failed')
+  } catch (error) {
+    console.error('Failed to login:', error)
+    throw error
+  }
+}
+
+// Logout user
+export function logoutUser(): void {
+  if (typeof window === "undefined") {
+    return
+  }
+  
+  localStorage.removeItem('auth_token')
+  localStorage.removeItem('admin_email')
+}

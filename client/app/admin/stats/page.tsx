@@ -9,11 +9,46 @@ import { getCurrentUser, hasPermission } from "@/lib/user-data"
 
 export default function StatsPage() {
   const [casinos, setCasinos] = useState<Casino[]>([])
-  const [currentUser, setCurrentUser] = useState(getCurrentUser())
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    setCasinos(getCasinos())
-    setCurrentUser(getCurrentUser())
+    // Fetch all casinos (not just published) for admin stats
+    import("@/lib/api-client").then(({ casinosApi }) => {
+      casinosApi.getAll({ limit: 1000 }).then((response) => {
+        if (response.data && Array.isArray(response.data)) {
+          const transformedCasinos = response.data.map((casino: any) => ({
+            id: String(casino.id),
+            name: casino.name,
+            slug: casino.slug,
+            logo: casino.logo,
+            tagType: casino.tag_type || casino.tagType,
+            tagText: casino.tag_text || casino.tagText,
+            rating: casino.rating,
+            bonusText: casino.bonus_text || casino.bonusText,
+            rewardsCount: casino.rewards_count || casino.rewardsCount,
+            category: casino.category,
+            country: casino.country,
+            status: casino.status,
+            hasReview: casino.has_review === 1 || casino.hasReview,
+            stats: {
+              landingPageViews: casino.landing_page_views || casino.stats?.landingPageViews || 0,
+              claimBonusClicks: casino.claim_bonus_clicks || casino.stats?.claimBonusClicks || 0,
+              reviewReads: casino.review_reads || casino.stats?.reviewReads || 0,
+            },
+          }))
+          setCasinos(transformedCasinos)
+        }
+      }).catch((error) => {
+        console.error('Failed to load casinos:', error)
+      }).finally(() => {
+        setIsLoading(false)
+      })
+    })
+    
+    getCurrentUser().then((user) => {
+      setCurrentUser(user)
+    })
   }, [])
 
   const canViewStats = hasPermission(currentUser, "view_stats")
@@ -24,6 +59,31 @@ export default function StatsPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Statistics & Analytics</h1>
           <p className="text-muted-foreground">You don't have permission to view statistics.</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Casino Statistics</h1>
+          <p className="text-muted-foreground">Loading statistics...</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <div className="h-4 w-32 bg-muted animate-pulse rounded" />
+                <div className="h-4 w-4 bg-muted animate-pulse rounded" />
+              </CardHeader>
+              <CardContent>
+                <div className="h-8 w-20 bg-muted animate-pulse rounded mb-2" />
+                <div className="h-3 w-40 bg-muted animate-pulse rounded" />
+              </CardContent>
+            </Card>
+          ))}
         </div>
       </div>
     )

@@ -18,22 +18,36 @@ import {
   rolePermissions,
 } from "@/lib/user-data"
 import { getCurrentUser, hasPermission } from "@/lib/user-data"
+import { useToast } from "@/hooks/use-toast"
 
 export default function UsersPage() {
+  const { toast } = useToast()
   const [users, setUsers] = useState<User[]>([])
   const [isCreating, setIsCreating] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     email: "",
     name: "",
-    role: "editor" as UserRole,
+    role: "moderator" as UserRole,
     isActive: true,
   })
   const [currentUser, setCurrentUser] = useState<User | null>(null)
 
   useEffect(() => {
-    setUsers(getUsers())
-    setCurrentUser(getCurrentUser())
+    getUsers().then((usersList) => {
+      setUsers(usersList)
+    }).catch((error) => {
+      console.error('Failed to load users:', error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to load users. Please refresh the page.",
+      })
+    })
+    
+    getCurrentUser().then((user) => {
+      setCurrentUser(user)
+    })
   }, [])
 
   const canManageUsers = hasPermission(currentUser, "manage_users")
@@ -44,7 +58,7 @@ export default function UsersPage() {
     setFormData({
       email: "",
       name: "",
-      role: "editor",
+      role: "moderator",
       isActive: true,
     })
   }
@@ -60,36 +74,103 @@ export default function UsersPage() {
     })
   }
 
-  const handleSave = () => {
-    if (editingId) {
-      // Update existing user
-      if (updateUser(editingId, formData)) {
-        setUsers(getUsers())
-        setEditingId(null)
-      }
-    } else {
-      // Create new user
-      createUser(formData)
-      setUsers(getUsers())
-      setIsCreating(false)
+  const handleSave = async () => {
+    if (!formData.name || !formData.email) {
+      toast({
+        variant: "warning",
+        title: "Validation Error",
+        description: "Please fill in all required fields.",
+      })
+      return
     }
+
+    try {
+      if (editingId) {
+        // Update existing user
+        const success = await updateUser(editingId, formData)
+        if (success) {
+          const updatedUsers = await getUsers()
+          setUsers(updatedUsers)
+          setEditingId(null)
+          toast({
+            variant: "success",
+            title: "User Updated",
+            description: "User has been successfully updated.",
+          })
+        } else {
+          toast({
+            variant: "destructive",
+            title: "Update Failed",
+            description: "Failed to update user. Please try again.",
+          })
+        }
+      } else {
+        // Create new user
+        await createUser({ ...formData, password: 'temp-password' }) // Password should be provided by user
+        const updatedUsers = await getUsers()
+        setUsers(updatedUsers)
+        setIsCreating(false)
+        toast({
+          variant: "success",
+          title: "User Created",
+          description: "New user has been successfully created.",
+        })
+      }
+    } catch (error: any) {
+      console.error('Failed to save user:', error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to save user. Please try again.",
+      })
+    }
+    
     setFormData({
       email: "",
       name: "",
-      role: "editor",
+      role: "moderator",
       isActive: true,
     })
   }
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (id === currentUser?.id) {
-      alert("You cannot delete your own account!")
+      toast({
+        variant: "warning",
+        title: "Cannot Delete Account",
+        description: "You cannot delete your own account!",
+      })
       return
     }
-    if (confirm("Are you sure you want to delete this user?")) {
-      if (deleteUser(id)) {
-        setUsers(getUsers())
+    
+    // Show confirmation dialog using a custom approach
+    const confirmed = window.confirm("Are you sure you want to delete this user?")
+    if (!confirmed) return
+
+    try {
+      const success = await deleteUser(id)
+      if (success) {
+        const updatedUsers = await getUsers()
+        setUsers(updatedUsers)
+        toast({
+          variant: "success",
+          title: "User Deleted",
+          description: "User has been successfully deleted.",
+        })
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Delete Failed",
+          description: "Failed to delete user. Please try again.",
+        })
       }
+    } catch (error: any) {
+      console.error('Failed to delete user:', error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to delete user. Please try again.",
+      })
     }
   }
 
@@ -99,7 +180,7 @@ export default function UsersPage() {
     setFormData({
       email: "",
       name: "",
-      role: "editor",
+      role: "moderator",
       isActive: true,
     })
   }
@@ -167,9 +248,9 @@ export default function UsersPage() {
                 onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
               >
+                <option value="moderator">Moderator</option>
                 <option value="admin">Admin</option>
-                <option value="editor">Editor</option>
-                <option value="viewer">Viewer</option>
+                <option value="owner">Owner</option>
               </select>
               <p className="text-xs text-muted-foreground mt-1">
                 Permissions: {rolePermissions[formData.role].join(", ")}
@@ -240,11 +321,11 @@ export default function UsersPage() {
                     <TableCell>
                       <span
                         className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${
-                          user.role === "admin"
-                            ? "bg-purple-100 text-purple-800"
-                            : user.role === "editor"
-                              ? "bg-blue-100 text-blue-800"
-                              : "bg-gray-100 text-gray-800"
+                          user.role === "owner"
+                            ? "bg-red-100 text-red-800"
+                            : user.role === "admin"
+                              ? "bg-purple-100 text-purple-800"
+                              : "bg-blue-100 text-blue-800"
                         }`}
                       >
                         <Shield className="h-3 w-3" />

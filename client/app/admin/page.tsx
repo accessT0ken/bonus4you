@@ -1,40 +1,90 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, FileText, TrendingUp, Eye } from "lucide-react"
+import { Users, FileText, TrendingUp, Eye, Building2 } from "lucide-react"
+import { statsApi } from "@/lib/api-client"
+import { getCurrentUser, hasPermission } from "@/lib/user-data"
 
-const stats = [
-  {
-    title: "Total Visitors",
-    value: "12,543",
-    change: "+12.5%",
-    icon: Users,
-    description: "Last 30 days",
-  },
-  {
-    title: "Blog Posts",
-    value: "24",
-    change: "+3",
-    icon: FileText,
-    description: "Published articles",
-  },
-  {
-    title: "Page Views",
-    value: "45,231",
-    change: "+8.2%",
-    icon: Eye,
-    description: "Last 30 days",
-  },
-  {
-    title: "Growth Rate",
-    value: "18.3%",
-    change: "+2.1%",
-    icon: TrendingUp,
-    description: "Month over month",
-  },
-]
+interface DashboardStats {
+  casinos: {
+    total: number;
+    published: number;
+    withReviews: number;
+    totalLandingViews: number;
+    totalClaimClicks: number;
+    totalReviewReads: number;
+    claimConversionRate: number;
+    reviewConversionRate: number;
+  };
+  blogs: {
+    total: number;
+    published: number;
+  };
+  users: {
+    total: number;
+    active: number;
+  };
+  totalPageViews: number;
+}
 
 export default function AdminDashboard() {
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [currentUser, setCurrentUser] = useState<any>(null)
+
+  useEffect(() => {
+    getCurrentUser().then((user) => {
+      setCurrentUser(user)
+    })
+
+    statsApi.getStats()
+      .then((response) => {
+        if (response.data) {
+          setStats(response.data)
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to load stats:', error)
+      })
+      .finally(() => {
+        setIsLoading(false)
+      })
+  }, [])
+
+  const canViewStats = hasPermission(currentUser, "view_stats")
+
+  const statsCards = stats ? [
+    {
+      title: "Total Page Views",
+      value: stats.totalPageViews.toLocaleString(),
+      change: `${stats.casinos.claimConversionRate.toFixed(1)}%`,
+      icon: Eye,
+      description: "All casino views",
+    },
+    {
+      title: "Blog Posts",
+      value: stats.blogs.published.toString(),
+      change: `${stats.blogs.total} total`,
+      icon: FileText,
+      description: "Published articles",
+    },
+    {
+      title: "Published Casinos",
+      value: stats.casinos.published.toString(),
+      change: `${stats.casinos.total} total`,
+      icon: Building2,
+      description: "Active casinos",
+    },
+    {
+      title: "Claim Clicks",
+      value: stats.casinos.totalClaimClicks.toLocaleString(),
+      change: `${stats.casinos.claimConversionRate.toFixed(1)}%`,
+      icon: TrendingUp,
+      description: "Conversion rate",
+    },
+  ] : []
+
   return (
     <div className="space-y-6">
       <div>
@@ -42,22 +92,39 @@ export default function AdminDashboard() {
         <p className="text-muted-foreground">Welcome back! Here's an overview of your site.</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => (
-          <Card key={stat.title}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-              <stat.icon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                <span className="text-green-600 font-semibold">{stat.change}</span> {stat.description}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {isLoading ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <div className="h-4 w-24 bg-muted animate-pulse rounded" />
+                <div className="h-4 w-4 bg-muted animate-pulse rounded" />
+              </CardHeader>
+              <CardContent>
+                <div className="h-8 w-20 bg-muted animate-pulse rounded mb-2" />
+                <div className="h-3 w-32 bg-muted animate-pulse rounded" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {statsCards.map((stat) => (
+            <Card key={stat.title}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
+                <stat.icon className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stat.value}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  <span className="text-green-600 font-semibold">{stat.change}</span> {stat.description}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>

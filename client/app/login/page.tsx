@@ -8,14 +8,14 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/contexts/auth-context"
 import { Mail, Lock, Loader2 } from "lucide-react"
-import { useRadixToast } from "@/components/radix-toast"
+import { useToast } from "@/hooks/use-toast"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
-  const { showToast } = useRadixToast()
+  const { toast } = useToast()
   const { login, isAuthenticated } = useAuth()
   const router = useRouter()
 
@@ -27,7 +27,8 @@ export default function LoginPage() {
     e.preventDefault()
 
     if (!email.trim()) {
-      showToast({
+      toast({
+        variant: "warning",
         title: "Missing Email",
         description: "Please enter your email address.",
       })
@@ -35,7 +36,8 @@ export default function LoginPage() {
     }
 
     if (!password.trim()) {
-      showToast({
+      toast({
+        variant: "warning",
         title: "Missing Password",
         description: "Please enter your password.",
       })
@@ -48,22 +50,25 @@ export default function LoginPage() {
       const success = await login(email, password)
 
       if (success) {
-        showToast({
-          title: "Login Successful",
-          description: "Redirecting to admin dashboard...",
+        toast({
+          variant: "success",
+          title: "Login successful",
+          description: "Redirecting to the admin dashboard...",
         })
 
         setTimeout(() => router.push("/admin"), 800)
       } else {
-        showToast({
-          title: "Invalid Credentials",
-          description: "Email or password is incorrect.",
+        toast({
+          variant: "destructive",
+          title: "Invalid credentials",
+          description: "The email or password you entered is incorrect.",
         })
       }
     } catch (err) {
-      showToast({
-        title: "Login Failed",
-        description: "Unexpected server error. Try again later.",
+      toast({
+        variant: "destructive",
+        title: "Login failed",
+        description: "Unexpected error. Please try again later.",
       })
     } finally {
       setIsLoading(false)

@@ -27,6 +27,8 @@ import {
   Menu,
   Building2,
   Users,
+  User,
+  MessageCircle,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -37,6 +39,11 @@ const menuItems = [
     title: "Dashboard",
     icon: LayoutDashboard,
     href: "/admin",
+  },
+  {
+    title: "Account",
+    icon: User,
+    href: "/admin/account",
   },
   {
     title: "Casinos",
@@ -57,6 +64,11 @@ const menuItems = [
     title: "Users",
     icon: Users,
     href: "/admin/users",
+  },
+  {
+    title: "Support",
+    icon: MessageCircle,
+    href: "/admin/support",
   },
 ]
 

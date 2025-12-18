@@ -1,6 +1,5 @@
 "use client"
 
-import type { JSX } from "react"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -8,10 +7,6 @@ import {
   Sparkles,
   ChevronDown,
   Wallet,
-  CreditCard,
-  DollarSign,
-  Bitcoin,
-  Coins,
   Shield,
   Crown,
   Zap,
@@ -21,10 +16,6 @@ import {
   trackLandingPageView,
   trackClaimBonusClick,
   type Casino,
-  paymentMethods,
-  casinoTags,
-  type CasinoTag,
-  type PaymentMethod,
 } from "@/lib/casino-data"
 
 export function CasinoCard({ casino }: { casino: Casino }) {
@@ -42,21 +33,15 @@ export function CasinoCard({ casino }: { casino: Casino }) {
     window.open(`/go/${casino.slug}`, "_blank")
   }
 
-  const iconMap: Record<string, JSX.Element> = {
-    bitcoin: <Bitcoin className="w-4 h-4 text-primary" />,
-    ethereum: <Coins className="w-4 h-4 text-primary" />,
-    wallet: <Wallet className="w-4 h-4 text-primary" />,
-    card: <CreditCard className="w-4 h-4 text-primary" />,
-    usd: <DollarSign className="w-4 h-4 text-primary" />,
-  }
+  const tags = (casino.tagIds || []).map((id: string) => ({
+    id,
+    label: id
+      .split("-")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" "),
+  }))
 
-  const tags: CasinoTag[] = (casino.tagIds || [])
-    .map((id: string) => casinoTags.find((t) => t.id === id))
-    .filter((t): t is CasinoTag => Boolean(t))
-
-  const methods = (casino.paymentMethodIds || [])
-    .map((id: string) => paymentMethods.find((m: PaymentMethod) => m.id === id))
-    .filter((m): m is PaymentMethod => Boolean(m))
+  const methods = casino.paymentMethodIds || []
 
   const maxPaymentIndex = Math.max(0, methods.length - 3)
 
@@ -278,22 +263,14 @@ export function CasinoCard({ casino }: { casino: Casino }) {
                         : "translate-x-0 opacity-100 scale-100"
                     }`}
                   >
-                    {visibleMethods.map((method: PaymentMethod, idx: number) => (
+                    {visibleMethods.map((methodId: string, idx: number) => (
                       <div
-                        key={`${method.id}-${paymentIndex}-${idx}`}
+                        key={`${methodId}-${paymentIndex}-${idx}`}
                         className={`w-8 h-8 md:w-10 md:h-10 backdrop-blur-sm rounded-md flex items-center justify-center border border-[#000025]/20 shadow-sm overflow-hidden bg-white/80 flex-shrink-0 transition-all duration-300 ${
                           isTransitioning ? "blur-sm" : "blur-0"
                         }`}
                       >
-                        {method.type === "image" ? (
-                          <img
-                            src={method.value}
-                            className="w-full h-full object-contain p-1"
-                            alt={method.name}
-                          />
-                        ) : (
-                          iconMap[method.value] || <span className="text-[10px]">?</span>
-                        )}
+                        <Wallet className="w-4 h-4 text-purple-600" />
                       </div>
                     ))}
                   </div>

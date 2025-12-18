@@ -4,7 +4,7 @@ import { Star, ChevronRight, ExternalLink, Edit2, Save, X, Settings, Lock, Menu 
 import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { use } from "react"
-import { getCasinoBySlug, trackReviewRead, trackClaimBonusClick, updateSectionContent, updateCasinoProperties, gameModes, paymentMethods, type Casino } from "@/lib/casino-data"
+import { getCasinoBySlug, trackReviewRead, trackClaimBonusClick, updateSectionContent, updateCasinoProperties, type Casino } from "@/lib/casino-data"
 import { useAuth } from "@/contexts/auth-context"
 import { getCurrentUser, hasPermission } from "@/lib/user-data"
 import { RichTextEditor } from "@/components/rich-text-editor"
@@ -160,14 +160,24 @@ export default function ReviewPage({ params }: { params: Promise<{ slug: string 
         return section.content && section.content.trim().length > 0
       })
 
-  // Get game names from IDs
+  // Get game names from IDs (derive label from ID)
   const casinoGameNames = casino?.gameModeIds
-    ? casino.gameModeIds.map(id => gameModes.find(gm => gm.id === id)?.name).filter(Boolean) as string[]
+    ? casino.gameModeIds.map(id =>
+        id
+          .split("-")
+          .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+          .join(" ")
+      )
     : []
 
-  // Get payment method names from IDs
+  // Get payment method names from IDs (derive label from ID)
   const casinoPaymentMethodNames = casino?.paymentMethodIds
-    ? casino.paymentMethodIds.map(id => paymentMethods.find(pm => pm.id === id)?.name).filter(Boolean) as string[]
+    ? casino.paymentMethodIds.map(id =>
+        id
+          .split("-")
+          .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+          .join(" ")
+      )
     : []
 
   if (isLoading || !casino) {

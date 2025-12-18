@@ -1,58 +1,7 @@
 // casino-data.ts
 
-// Global Payment Methods List
-export interface PaymentMethod {
-  id: string
-  name: string
-  type: "image" | "icon"
-  value: string
-}
-
-// Tag chips shown on casino cards
-export interface CasinoTag {
-  id: string
-  label: string
-}
-
-export const casinoTags: CasinoTag[] = [
-  { id: "fast-registration", label: "Fast registration" },
-  { id: "no-kys-first-withdraw", label: "No KYC for first withdrawals" },
-  { id: "sports-betting", label: "Sports betting" },
-  { id: "vpn-friendly", label: "VPN friendly" },
-  { id: "revolut-withdrawal", label: "Withdrawals to Revolut" },
-  { id: "visa-second-deposit", label: "VISA from second deposit" },
-  { id: "free-spins", label: "Free spins" },
-]
-
-export const paymentMethods: PaymentMethod[] = [
-  { id: "visa", name: "Visa", type: "image", value: "/assets//payments/visa.svg" },
-  { id: "mastercard", name: "Mastercard", type: "image", value: "/assets/payments/mastercard.svg" },
-  { id: "paypal", name: "PayPal", type: "image", value: "/assets/payments/paypal.svg" },
-  { id: "bitcoin", name: "Bitcoin", type: "icon", value: "bitcoin" },
-  { id: "ethereum", name: "Ethereum", type: "icon", value: "ethereum" },
-]
-
-// Game Modes available at casinos
-export interface GameMode {
-  id: string
-  name: string
-}
-
-export const gameModes: GameMode[] = [
-  { id: "slots", name: "Slots" },
-  { id: "roulette", name: "Roulette" },
-  { id: "blackjack", name: "Blackjack" },
-  { id: "poker", name: "Poker" },
-  { id: "baccarat", name: "Baccarat" },
-  { id: "live-casino", name: "Live Casino" },
-  { id: "sports-betting", name: "Sports Betting" },
-  { id: "cs2-cases", name: "CS2 Cases" },
-  { id: "crash", name: "Crash" },
-  { id: "dice", name: "Dice" },
-]
-
-// Available licenses
-export const licenses = ["Curacao", "Malta", "UKGC", "MGA", "Kahnawake"]
+// (Global filter metadata like payment methods / tags / game modes used to live here)
+// All filter options are now derived directly from API casino data instead.
 
 // Casino structure
 export interface Casino {

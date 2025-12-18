@@ -13,6 +13,14 @@ export interface User {
   isActive: boolean
 }
 
+// Payload for creating a new user (includes password)
+export interface NewUserInput {
+  email: string
+  name: string
+  role: UserRole
+  password: string
+}
+
 // Role permissions mapping
 export const rolePermissions: Record<UserRole, Permission[]> = {
   moderator: ["manage_casinos", "edit_reviews", "view_stats", "publish_content"],
@@ -99,7 +107,7 @@ export async function getUserByEmail(email: string): Promise<User | undefined> {
 }
 
 // Create new user
-export async function createUser(user: Omit<User, "id" | "createdAt">): Promise<User> {
+export async function createUser(user: NewUserInput): Promise<User> {
   if (typeof window === "undefined") {
     throw new Error('Cannot create user on server side')
   }
@@ -109,7 +117,7 @@ export async function createUser(user: Omit<User, "id" | "createdAt">): Promise<
     const response = await usersApi.create({
       email: user.email,
       name: user.name,
-      password: 'temp-password', // Should be provided
+      password: user.password,
       role: user.role,
     })
     
@@ -125,7 +133,7 @@ export async function createUser(user: Omit<User, "id" | "createdAt">): Promise<
 }
 
 // Update user
-export async function updateUser(userId: string, updates: Partial<User>): Promise<boolean> {
+export async function updateUser(userId: string, updates: Partial<User> & { password?: string }): Promise<boolean> {
   if (typeof window === "undefined") {
     return false
   }
@@ -143,6 +151,22 @@ export async function updateUser(userId: string, updates: Partial<User>): Promis
     return true
   } catch (error) {
     console.error('Failed to update user:', error)
+    return false
+  }
+}
+
+// Update password for the currently authenticated user via /users/me/password
+export async function updateMyPassword(password: string): Promise<boolean> {
+  if (typeof window === "undefined") {
+    return false
+  }
+
+  try {
+    const { usersApi } = await import('./api-client')
+    await usersApi.updateMePassword(password)
+    return true
+  } catch (error) {
+    console.error('Failed to update own password:', error)
     return false
   }
 }

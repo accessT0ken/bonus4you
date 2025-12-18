@@ -3,6 +3,7 @@ import casinosRouter from './casinos';
 import blogsRouter from './blogs';
 import usersRouter from './users';
 import statsRouter from './stats';
+import supportRouter from './support';
 
 const router = Router();
 
@@ -10,6 +11,7 @@ router.use('/casinos', casinosRouter);
 router.use('/blogs', blogsRouter);
 router.use('/users', usersRouter);
 router.use('/stats', statsRouter);
+router.use('/support', supportRouter);
 
 // Health check endpoint
 router.get('/health', (req, res) => {

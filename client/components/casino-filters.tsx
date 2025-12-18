@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, type JSX } from "react"
-import { Filter, Wallet, CreditCard, DollarSign, Bitcoin, Coins } from "lucide-react"
+import { useState } from "react"
+import { Filter, Wallet } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { casinoTags, paymentMethods, gameModes, licenses, type Casino, type PaymentMethod } from "@/lib/casino-data"
+import type { Casino } from "@/lib/casino-data"
 
 export interface FilterState {
   selectedTags: string[]
@@ -26,6 +26,9 @@ export function CasinoFilters({ filters, onFiltersChange, casinos }: CasinoFilte
 
   // Get unique values from casinos
   const availableLicenses = Array.from(new Set(casinos.map(c => c.license).filter(Boolean))) as string[]
+  const availableTagIds = Array.from(new Set(casinos.flatMap(c => c.tagIds || [])))
+  const availablePaymentMethodIds = Array.from(new Set(casinos.flatMap(c => c.paymentMethodIds || [])))
+  const availableGameModeIds = Array.from(new Set(casinos.flatMap(c => c.gameModeIds || [])))
   const availableRatings = casinos.map(c => c.rating)
   const minAvailableRating = availableRatings.length > 0 ? Math.min(...availableRatings) : 0
   const maxAvailableRating = availableRatings.length > 0 ? Math.max(...availableRatings) : 5
@@ -104,19 +107,31 @@ export function CasinoFilters({ filters, onFiltersChange, casinos }: CasinoFilte
       <div className="mb-6">
         <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Tags</h4>
         <div className="flex flex-col gap-2 max-h-40 overflow-y-auto">
-          {casinoTags.map((tag) => (
-            <button
-              key={tag.id}
-              onClick={() => toggleTag(tag.id)}
-              className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-all duration-300 text-left ${
-                filters.selectedTags.includes(tag.id)
-                  ? "bg-purple-600 text-white border-purple-600 shadow-sm"
-                  : "bg-white text-slate-600 border-slate-200 hover:bg-purple-50 hover:border-purple-200"
-              }`}
-            >
-              {tag.label}
-            </button>
-          ))}
+          {availableTagIds.length === 0 ? (
+            <p className="text-[11px] text-muted-foreground">No tags available yet.</p>
+          ) : (
+            availableTagIds.map((tagId) => {
+              const label = tagId
+                .split("-")
+                .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+                .join(" ")
+
+              const selected = filters.selectedTags.includes(tagId)
+              return (
+                <button
+                  key={tagId}
+                  onClick={() => toggleTag(tagId)}
+                  className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-all duration-300 text-left ${
+                    selected
+                      ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                      : "bg-white text-slate-600 border-slate-200 hover:bg-purple-50 hover:border-purple-200"
+                  }`}
+                >
+                  {label}
+                </button>
+              )
+            })
+          )}
         </div>
       </div>
 
@@ -124,42 +139,34 @@ export function CasinoFilters({ filters, onFiltersChange, casinos }: CasinoFilte
       <div className="mb-6">
         <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Payment Methods</h4>
         <div className="flex flex-col gap-2 max-h-40 overflow-y-auto overflow-x-hidden">
-          {paymentMethods.map((method: PaymentMethod) => {
-            const iconMap: Record<string, JSX.Element> = {
-              bitcoin: <Bitcoin className="w-4 h-4" />,
-              ethereum: <Coins className="w-4 h-4" />,
-              wallet: <Wallet className="w-4 h-4" />,
-              card: <CreditCard className="w-4 h-4" />,
-              usd: <DollarSign className="w-4 h-4" />,
-            }
-            
-            const isSelected = filters.selectedPaymentMethods.includes(method.id)
-            
-            return (
-              <button
-                key={method.id}
-                onClick={() => togglePaymentMethod(method.id)}
-                className={`w-full px-3 py-2.5 rounded-lg text-xs font-semibold border transition-all duration-300 text-left flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98] min-w-0 ${
-                  isSelected
-                    ? "bg-purple-600 text-white border-purple-600 shadow-sm"
-                    : "bg-white text-slate-600 border-slate-200 hover:bg-purple-50 hover:border-purple-200"
-                }`}
-              >
-                {method.type === "image" ? (
-                  <img
-                    src={method.value}
-                    alt={method.name}
-                    className="w-5 h-5 object-contain flex-shrink-0"
-                  />
-                ) : (
+          {availablePaymentMethodIds.length === 0 ? (
+            <p className="text-[11px] text-muted-foreground">No payment methods available yet.</p>
+          ) : (
+            availablePaymentMethodIds.map((id) => {
+              const label = id
+                .split("-")
+                .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+                .join(" ")
+              const isSelected = filters.selectedPaymentMethods.includes(id)
+
+              return (
+                <button
+                  key={id}
+                  onClick={() => togglePaymentMethod(id)}
+                  className={`w-full px-3 py-2.5 rounded-lg text-xs font-semibold border transition-all duration-300 text-left flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98] min-w-0 ${
+                    isSelected
+                      ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                      : "bg-white text-slate-600 border-slate-200 hover:bg-purple-50 hover:border-purple-200"
+                  }`}
+                >
                   <span className={`flex-shrink-0 ${isSelected ? "text-white" : "text-purple-600"}`}>
-                    {iconMap[method.value] || <Wallet className="w-4 h-4" />}
+                    <Wallet className="w-4 h-4" />
                   </span>
-                )}
-                <span className="truncate flex-1 min-w-0">{method.name}</span>
-              </button>
-            )
-          })}
+                  <span className="truncate flex-1 min-w-0">{label}</span>
+                </button>
+              )
+            })
+          )}
         </div>
       </div>
 
@@ -167,19 +174,31 @@ export function CasinoFilters({ filters, onFiltersChange, casinos }: CasinoFilte
       <div className="mb-6">
         <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Game Modes</h4>
         <div className="flex flex-col gap-2 max-h-40 overflow-y-auto">
-          {gameModes.map((mode) => (
-            <button
-              key={mode.id}
-              onClick={() => toggleGameMode(mode.id)}
-              className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-all duration-300 text-left ${
-                filters.selectedGameModes.includes(mode.id)
-                  ? "bg-purple-600 text-white border-purple-600 shadow-sm"
-                  : "bg-white text-slate-600 border-slate-200 hover:bg-purple-50 hover:border-purple-200"
-              }`}
-            >
-              {mode.name}
-            </button>
-          ))}
+          {availableGameModeIds.length === 0 ? (
+            <p className="text-[11px] text-muted-foreground">No game modes available yet.</p>
+          ) : (
+            availableGameModeIds.map((id) => {
+              const label = id
+                .split("-")
+                .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+                .join(" ")
+
+              const selected = filters.selectedGameModes.includes(id)
+              return (
+                <button
+                  key={id}
+                  onClick={() => toggleGameMode(id)}
+                  className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-all duration-300 text-left ${
+                    selected
+                      ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                      : "bg-white text-slate-600 border-slate-200 hover:bg-purple-50 hover:border-purple-200"
+                  }`}
+                >
+                  {label}
+                </button>
+              )
+            })
+          )}
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 -- Create database
-CREATE DATABASE IF NOT EXISTS bonus4you_db;
-USE bonus4you_db;
+CREATE DATABASE IF NOT EXISTS bonus4you;
+USE bonus4you;
 
 -- Casinos table
 CREATE TABLE IF NOT EXISTS casinos (
@@ -71,4 +71,43 @@ CREATE TABLE IF NOT EXISTS users (
   last_login TIMESTAMP NULL,
   INDEX idx_email (email),
   INDEX idx_role (role)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Support chat conversations
+CREATE TABLE IF NOT EXISTS support_conversations (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  guest_id VARCHAR(64) NOT NULL,
+  name VARCHAR(100),
+  email VARCHAR(255),
+  ip_address VARCHAR(45),
+  user_agent VARCHAR(255),
+  last_page VARCHAR(500),
+  status ENUM('open', 'closed') DEFAULT 'open',
+  last_activity_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_guest (guest_id),
+  INDEX idx_status (status),
+  INDEX idx_last_activity (last_activity_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Support chat messages
+CREATE TABLE IF NOT EXISTS support_messages (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  conversation_id INT NOT NULL,
+  sender_type ENUM('guest', 'admin') NOT NULL,
+  sender_id INT NULL,
+  message TEXT NOT NULL,
+  page_url VARCHAR(500),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_conversation (conversation_id),
+  CONSTRAINT fk_support_messages_conversation
+    FOREIGN KEY (conversation_id)
+    REFERENCES support_conversations(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Site-wide settings
+CREATE TABLE IF NOT EXISTS site_settings (
+  id INT PRIMARY KEY,
+  support_enabled TINYINT(1) NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

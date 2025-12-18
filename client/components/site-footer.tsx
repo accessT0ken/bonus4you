@@ -12,7 +12,9 @@ export function SiteFooter() {
               <img src="/assets/BONUS4YOU_DARK_BLURRY.png" alt="bonus4you" className="h-12 w-auto object-contain" />
             </div>
             <p className="text-sm text-muted-foreground max-w-md">
-              Your trusted source for casino bonus comparisons and reviews since 2025
+              Your trusted source for{" "}
+              <span className="font-semibold text-primary">casino bonus</span> comparisons and{" "}
+              <span className="font-semibold text-primary">reviews</span> since 2025
             </p>
           </div>
 
@@ -29,16 +31,31 @@ export function SiteFooter() {
             <Link href="/reviews" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
               Reviews
             </Link>
-            <Link href="#" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
+            <Link href="/privacy-policy" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
               Privacy Policy
             </Link>
-            <Link href="#" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
+            <Link href="/terms-of-service" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
               Terms of Service
             </Link>
           </div>
 
-          <div className="pt-6 border-t border-primary/10 text-center">
-            <p className="text-sm text-muted-foreground">© 2025 bonus4you. All rights reserved.</p>
+          <div className="pt-6 border-t border-primary/10 text-center space-y-2">
+            <p className="text-xs text-muted-foreground">
+              <span className="font-semibold text-primary">Responsible Gambling:</span> We promote responsible gambling.
+              Visit{" "}
+              <a
+                href="https://www.begambleaware.org/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-primary underline underline-offset-2 hover:text-primary/80"
+              >
+                BeGambleAware.org
+              </a>{" "}
+              for help.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              © 2025 <span className="font-semibold text-primary">bonus4you</span>. All rights reserved.
+            </p>
           </div>
         </div>
       </div>

@@ -130,6 +130,13 @@ class ApiClient {
   async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, { method: 'DELETE' });
   }
+
+  async patch<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+  }
 }
 
 export const apiClient = new ApiClient();
@@ -211,6 +218,9 @@ export const usersApi = {
 
   delete: (id: string) =>
     apiClient.delete('/users/' + id),
+
+  updateMePassword: (password: string) =>
+    apiClient.put<any>('/users/me/password', { password }),
 };
 
 // Stats API
@@ -237,5 +247,40 @@ export const statsApi = {
       };
       totalPageViews: number;
     }>('/stats'),
+};
+
+// Support API
+export const supportApi = {
+  // Guest sends message (and creates/updates conversation)
+  sendMessage: (payload: {
+    guestId: string;
+    name?: string;
+    email?: string;
+    message: string;
+    pageUrl?: string;
+  }) => apiClient.post<{ conversationId: number }>('/support/messages', payload),
+
+  // Admin: list conversations
+  getConversations: (params?: { status?: 'open' | 'closed' }) =>
+    apiClient.get<any[]>('/support/conversations', params),
+
+  // Admin: get one conversation with messages
+  getConversationMessages: (id: number) =>
+    apiClient.get<any>(`/support/conversations/${id}/messages`),
+
+  // Admin: reply to conversation
+  replyToConversation: (id: number, message: string) =>
+    apiClient.post(`/support/conversations/${id}/reply`, { message }),
+
+  // Admin: update conversation status
+  updateConversationStatus: (id: number, status: 'open' | 'closed') =>
+    apiClient.patch(`/support/conversations/${id}/status`, { status } as any),
+
+  // Admin: get support config
+  getConfig: () => apiClient.get<{ supportEnabled: boolean }>('/support/config'),
+
+  // Admin: update support config
+  updateConfig: (supportEnabled: boolean) =>
+    apiClient.patch<{ supportEnabled: boolean }>('/support/config', { supportEnabled }),
 };
 

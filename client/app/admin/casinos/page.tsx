@@ -12,6 +12,17 @@ import { getCasinos, saveCasinos, type Casino } from "@/lib/casino-data"
 import { getCurrentUser, hasPermission } from "@/lib/user-data"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 export default function CasinosPage() {
   const { toast } = useToast()
@@ -19,6 +30,8 @@ export default function CasinosPage() {
   const [currentUser, setCurrentUser] = useState(getCurrentUser())
   const [isCreating, setIsCreating] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [newPaymentMethod, setNewPaymentMethod] = useState("")
+  const [newGame, setNewGame] = useState("")
   const [filterOptions, setFilterOptions] = useState<{
     categories: string[]
     statuses: string[]
@@ -227,9 +240,6 @@ export default function CasinosPage() {
   }
 
   const handleDelete = async (id: string) => {
-    const confirmed = window.confirm("Are you sure you want to delete this casino?")
-    if (!confirmed) return
-
     try {
       const { casinosApi } = await import("@/lib/api-client")
       const { clearCasinoCache, getCasinos } = await import("@/lib/casino-data")
@@ -275,22 +285,23 @@ export default function CasinosPage() {
   }
 
   const addPaymentMethod = () => {
-    const method = prompt("Enter payment method:")
-    if (method && method.trim()) {
+    const method = newPaymentMethod.trim()
+    if (method) {
       setFormData({
         ...formData,
-        paymentMethods: [...(formData.paymentMethods || []), method.trim()],
+        paymentMethods: [...(formData.paymentMethods || []), method],
       })
       toast({
         variant: "success",
         title: "Payment Method Added",
-        description: `${method.trim()} has been added.`,
+        description: `${method} has been added.`,
       })
-    } else if (method !== null) {
+      setNewPaymentMethod("")
+    } else {
       toast({
         variant: "warning",
-        title: "Invalid Input",
-        description: "Please enter a valid payment method name.",
+        title: "Missing payment method",
+        description: "Please enter a payment method name before adding.",
       })
     }
   }
@@ -302,22 +313,23 @@ export default function CasinosPage() {
   }
 
   const addGame = () => {
-    const game = prompt("Enter game name:")
-    if (game && game.trim()) {
+    const game = newGame.trim()
+    if (game) {
       setFormData({
         ...formData,
-        games: [...(formData.games || []), game.trim()],
+        games: [...(formData.games || []), game],
       })
       toast({
         variant: "success",
         title: "Game Added",
-        description: `${game.trim()} has been added.`,
+        description: `${game} has been added.`,
       })
-    } else if (game !== null) {
+      setNewGame("")
+    } else {
       toast({
         variant: "warning",
-        title: "Invalid Input",
-        description: "Please enter a valid game name.",
+        title: "Missing game name",
+        description: "Please enter a game name before adding.",
       })
     }
   }
@@ -344,7 +356,10 @@ export default function CasinosPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Casino Management</h1>
-          <p className="text-muted-foreground">Create, edit, and manage casinos with optional reviews</p>
+          <p className="text-muted-foreground">
+            Create, edit, and manage casinos. Start as a draft while testing, then switch to{" "}
+            <span className="font-semibold">Published</span> when you&apos;re ready to show it on the site.
+          </p>
         </div>
         <Button onClick={handleCreate} className="gap-2">
           <Plus className="h-4 w-4" />
@@ -356,7 +371,10 @@ export default function CasinosPage() {
         <Card>
           <CardHeader>
             <CardTitle>{editingId ? "Edit Casino" : "Create New Casino"}</CardTitle>
-            <CardDescription>Fill in the casino details. You can add a review later.</CardDescription>
+            <CardDescription>
+              Fill in the basic casino details. You can always update fields or add full review content later.
+              Leave status as <span className="font-semibold">Draft</span> while you&apos;re setting things up.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -379,6 +397,10 @@ export default function CasinosPage() {
                   placeholder="clash-gg"
                   required
                 />
+                <p className="text-xs text-muted-foreground">
+                  This becomes the URL path, e.g. <span className="font-mono">/review/clash-gg</span>. Use only
+                  lowercase letters, numbers, and dashes.
+                </p>
               </div>
             </div>
 
@@ -561,9 +583,20 @@ export default function CasinosPage() {
                   </span>
                 ))}
               </div>
-              <Button type="button" variant="outline" size="sm" onClick={addPaymentMethod}>
-                + Add Payment Method
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  value={newPaymentMethod}
+                  onChange={(e) => setNewPaymentMethod(e.target.value)}
+                  placeholder="e.g. Visa, PayPal, Crypto"
+                  className="max-w-xs"
+                />
+                <Button type="button" variant="outline" size="sm" onClick={addPaymentMethod}>
+                  + Add Payment Method
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Tip: Add how players can pay (cards, wallets, crypto, etc.).
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -585,9 +618,20 @@ export default function CasinosPage() {
                   </span>
                 ))}
               </div>
-              <Button type="button" variant="outline" size="sm" onClick={addGame}>
-                + Add Game
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  value={newGame}
+                  onChange={(e) => setNewGame(e.target.value)}
+                  placeholder="e.g. Slots, Crash, Roulette"
+                  className="max-w-xs"
+                />
+                <Button type="button" variant="outline" size="sm" onClick={addGame}>
+                  + Add Game
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Tip: Add main game types users will find on this casino.
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -621,6 +665,9 @@ export default function CasinosPage() {
                   </>
                 )}
               </select>
+              <p className="text-xs text-muted-foreground">
+                Draft casinos are only visible in the admin panel. Published casinos appear on the public site.
+              </p>
             </div>
 
             <div className="flex items-center gap-2">
@@ -762,10 +809,35 @@ export default function CasinosPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDelete(casino.id)}
+                          asChild
                           title="Delete"
                         >
-                          <Trash2 className="h-4 w-4 text-destructive" />
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <button>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete casino?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will permanently remove{" "}
+                                  <span className="font-semibold">{casino.name}</span> and its data from the admin
+                                  panel. This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  onClick={() => handleDelete(casino.id)}
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </Button>
                       </div>
                     </TableCell>

@@ -22,6 +22,7 @@ import { LoadingScreen } from "@/components/loading-screen"
 import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
 import { CasinoCard } from "@/components/casino-card"
+import { SupportChatWidget } from "@/components/support-chat-widget"
 
 export default function Home() {
   const [casinoCategory, setCasinoCategory] = useState<"cs2" | "general">("cs2")
@@ -361,6 +362,7 @@ export default function Home() {
       </section>
 
       <SiteFooter />
+      <SupportChatWidget />
     </div>
   )
 }

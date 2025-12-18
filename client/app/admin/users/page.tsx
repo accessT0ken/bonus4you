@@ -9,7 +9,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Edit, Trash2, Shield, User as UserIcon } from "lucide-react"
 import {
   getUsers,
-  saveUsers,
   createUser,
   updateUser,
   deleteUser,
@@ -19,6 +18,17 @@ import {
 } from "@/lib/user-data"
 import { getCurrentUser, hasPermission } from "@/lib/user-data"
 import { useToast } from "@/hooks/use-toast"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 export default function UsersPage() {
   const { toast } = useToast()
@@ -30,6 +40,8 @@ export default function UsersPage() {
     name: "",
     role: "moderator" as UserRole,
     isActive: true,
+    password: "",
+    confirmPassword: "",
   })
   const [currentUser, setCurrentUser] = useState<User | null>(null)
 
@@ -60,6 +72,8 @@ export default function UsersPage() {
       name: "",
       role: "moderator",
       isActive: true,
+      password: "",
+      confirmPassword: "",
     })
   }
 
@@ -71,6 +85,8 @@ export default function UsersPage() {
       name: user.name,
       role: user.role,
       isActive: user.isActive,
+      password: "",
+      confirmPassword: "",
     })
   }
 
@@ -84,10 +100,46 @@ export default function UsersPage() {
       return
     }
 
+    // Validate password fields
+    if (formData.password || formData.confirmPassword) {
+      if (formData.password.length < 6 && !editingId) {
+        toast({
+          variant: "warning",
+          title: "Validation Error",
+          description: "Password must be at least 6 characters.",
+        })
+        return
+      }
+
+      if (formData.password !== formData.confirmPassword) {
+        toast({
+          variant: "warning",
+          title: "Validation Error",
+          description: "Passwords do not match.",
+        })
+        return
+      }
+    } else if (!editingId) {
+      // Creating a new user requires a password
+      toast({
+        variant: "warning",
+        title: "Validation Error",
+        description: "Please provide a password for the new user.",
+      })
+      return
+    }
+
     try {
       if (editingId) {
         // Update existing user
-        const success = await updateUser(editingId, formData)
+        const success = await updateUser(editingId, {
+          email: formData.email,
+          name: formData.name,
+          role: formData.role,
+          isActive: formData.isActive,
+          // Only send password if provided (allows changing password in panel)
+          ...(formData.password ? { password: formData.password } : {}),
+        })
         if (success) {
           const updatedUsers = await getUsers()
           setUsers(updatedUsers)
@@ -106,7 +158,12 @@ export default function UsersPage() {
         }
       } else {
         // Create new user
-        await createUser({ ...formData, password: 'temp-password' }) // Password should be provided by user
+        await createUser({
+          email: formData.email,
+          name: formData.name,
+          role: formData.role,
+          password: formData.password,
+        })
         const updatedUsers = await getUsers()
         setUsers(updatedUsers)
         setIsCreating(false)
@@ -130,6 +187,8 @@ export default function UsersPage() {
       name: "",
       role: "moderator",
       isActive: true,
+      password: "",
+      confirmPassword: "",
     })
   }
 
@@ -143,10 +202,6 @@ export default function UsersPage() {
       return
     }
     
-    // Show confirmation dialog using a custom approach
-    const confirmed = window.confirm("Are you sure you want to delete this user?")
-    if (!confirmed) return
-
     try {
       const success = await deleteUser(id)
       if (success) {
@@ -182,6 +237,8 @@ export default function UsersPage() {
       name: "",
       role: "moderator",
       isActive: true,
+      password: "",
+      confirmPassword: "",
     })
   }
 
@@ -255,6 +312,34 @@ export default function UsersPage() {
               <p className="text-xs text-muted-foreground mt-1">
                 Permissions: {rolePermissions[formData.role].join(", ")}
               </p>
+            </div>
+
+            {/* Password fields */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="password">
+                  {editingId ? "New Password" : "Password"}{!editingId && " *"}
+                </Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  placeholder={editingId ? "Leave blank to keep current password" : "Enter password"}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">
+                  {editingId ? "Confirm New Password" : "Confirm Password"}{!editingId && " *"}
+                </Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={formData.confirmPassword}
+                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                  placeholder={editingId ? "Repeat new password" : "Repeat password"}
+                />
+              </div>
             </div>
 
             <div className="flex items-center gap-2">
@@ -380,14 +465,36 @@ export default function UsersPage() {
                           <Edit className="h-4 w-4" />
                         </Button>
                         {user.id !== currentUser?.id && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDelete(user.id)}
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Delete"
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete user?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will permanently remove{" "}
+                                  <span className="font-semibold">{user.email}</span> and their access. This cannot
+                                  be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  onClick={() => handleDelete(user.id)}
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         )}
                       </div>
                     </TableCell>

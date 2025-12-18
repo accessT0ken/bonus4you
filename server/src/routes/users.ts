@@ -1,8 +1,8 @@
-import { Router } from 'express';
+import { Router, Request } from 'express';
 import { param, query, body } from 'express-validator';
 import { asyncHandler } from '../middleware/asyncHandler';
 import { validate } from '../middleware/validation';
-import { NotFoundError, BadRequestError, UnauthorizedError } from '../types/errors';
+import { NotFoundError, BadRequestError, UnauthorizedError, ForbiddenError } from '../types/errors';
 import pool from '../config/database';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -333,6 +333,56 @@ router.put(
       data: response,
       message: 'User updated successfully',
     });
+  })
+);
+
+// PUT /users/me/password - Update current user's password using JWT
+router.put(
+  '/me/password',
+  validate([
+    body('password').trim().isLength({ min: 6 }).withMessage('password must be at least 6 characters'),
+  ]),
+  asyncHandler(async (req: Request, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new UnauthorizedError('Missing or invalid authorization header');
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    try {
+      const decoded: any = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+      const userId = decoded.userId;
+
+      if (!userId) {
+        throw new UnauthorizedError('Invalid token payload');
+      }
+
+      const { password } = req.body;
+
+      // Hash new password
+      const passwordHash = await bcrypt.hash(password, 10);
+
+      const [result] = await pool.execute(
+        'UPDATE users SET password_hash = ? WHERE id = ?',
+        [passwordHash, userId]
+      );
+
+      const updateResult = result as any;
+      if (updateResult.affectedRows === 0) {
+        throw new NotFoundError('USER_NOT_FOUND');
+      }
+
+      res.json({
+        code: 200,
+        message: 'Password updated successfully',
+      });
+    } catch (error) {
+      if (error instanceof jwt.JsonWebTokenError || error instanceof jwt.TokenExpiredError) {
+        throw new UnauthorizedError('Invalid or expired token');
+      }
+      throw error;
+    }
   })
 );
 

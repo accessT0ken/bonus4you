@@ -25,7 +25,6 @@ export function ApiLoadingScreen({ children }: ApiLoadingScreenProps) {
         setIsChecking(false)
         
         if (!healthy) {
-          // If API is not healthy, keep retrying every 5 seconds
           retryInterval = setInterval(async () => {
             if (isMounted) {
               setRetryCount(prev => prev + 1)
@@ -54,7 +53,6 @@ export function ApiLoadingScreen({ children }: ApiLoadingScreenProps) {
     }
   }, [])
 
-  // Show loading screen while checking or retrying
   if (isChecking || isApiHealthy === false) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background relative overflow-hidden">
@@ -83,7 +81,6 @@ export function ApiLoadingScreen({ children }: ApiLoadingScreenProps) {
     )
   }
 
-  // API is healthy, render children
   return <>{children}</>
 }
 

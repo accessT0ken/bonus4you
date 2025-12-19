@@ -1,14 +1,20 @@
 import { Router } from 'express';
 import { asyncHandler } from '../middleware/asyncHandler';
+import { requireAuth } from '../middleware/auth';
 import pool from '../config/database';
 
 const router = Router();
 
-// GET /stats - Get aggregated statistics
+/**
+ * GET /stats - Get aggregated statistics (admin/owner only)
+ * @route GET /stats
+ * @requires {string[]} auth - ['admin', 'owner']
+ * @returns {Object} Aggregated statistics for casinos, blogs, and users
+ */
 router.get(
   '/',
+  requireAuth(['admin', 'owner']),
   asyncHandler(async (req, res) => {
-    // Get casino statistics
     const [casinoStats] = await pool.execute(
       `SELECT 
         COUNT(*) as totalCasinos,
@@ -22,7 +28,6 @@ router.get(
 
     const casino = (casinoStats as any[])[0];
 
-    // Get blog statistics
     const [blogStats] = await pool.execute(
       `SELECT 
         COUNT(*) as totalBlogs,
@@ -32,7 +37,6 @@ router.get(
 
     const blog = (blogStats as any[])[0];
 
-    // Get user statistics
     const [userStats] = await pool.execute(
       `SELECT 
         COUNT(*) as totalUsers,
@@ -42,7 +46,6 @@ router.get(
 
     const user = (userStats as any[])[0];
 
-    // Calculate conversion rates
     const totalLandingViews = Number(casino.totalLandingViews) || 0;
     const totalClaimClicks = Number(casino.totalClaimClicks) || 0;
     const totalReviewReads = Number(casino.totalReviewReads) || 0;
@@ -55,8 +58,6 @@ router.get(
       ? ((totalReviewReads / totalLandingViews) * 100).toFixed(2)
       : '0.00';
 
-    // Get stats from last 30 days (if we had date tracking, we'd calculate this)
-    // For now, we'll return all-time stats
     const stats = {
       casinos: {
         total: Number(casino.totalCasinos) || 0,
@@ -76,7 +77,6 @@ router.get(
         total: Number(user.totalUsers) || 0,
         active: Number(user.activeUsers) || 0,
       },
-      // Calculate page views (sum of all landing views)
       totalPageViews: totalLandingViews,
     };
 

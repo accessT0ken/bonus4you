@@ -36,7 +36,6 @@ export function RadixToastProvider({ children }: { children: React.ReactNode }) 
     setToasts((prev) => {
       const newToast = { id: Date.now(), ...msg }
 
-      // Limit max toasts
       if (prev.length >= MAX_TOASTS) {
         prev = prev.slice(1) // remove oldest
       }
@@ -90,7 +89,6 @@ function RadixToastItem({
     const [open, setOpen] = useState(true)
     const [progress, setProgress] = useState(100)
   
-    // Progress bar animation
     useEffect(() => {
       const interval = 20
       const steps = duration / interval

@@ -1,7 +1,3 @@
-// API Client for Bonus4You API
-
-// Use relative path for API calls (proxied through Next.js rewrites to backend)
-// The rewrite is configured in next.config.mjs
 const API_BASE_URL = '/api';
 
 export interface ApiResponse<T> {
@@ -55,7 +51,6 @@ class ApiClient {
         headers,
       });
 
-      // Check if response is JSON
       const contentType = response.headers.get('content-type')
       let data: any
 
@@ -73,7 +68,6 @@ class ApiClient {
 
       if (!response.ok) {
         const error: ApiError = data
-        // Include validation errors in the error message if available
         let errorMessage = error.message || 'API request failed'
         if (error.errors) {
           if (typeof error.errors === 'string') {
@@ -102,7 +96,6 @@ class ApiClient {
       return this.request<T>(endpoint, { method: 'GET' });
     }
     
-    // Filter out undefined values
     const cleanParams = Object.entries(params)
       .filter(([_, v]) => v !== undefined && v !== null)
       .map(([k, v]) => [k, String(v)]);
@@ -141,7 +134,6 @@ class ApiClient {
 
 export const apiClient = new ApiClient();
 
-// Casinos API
 export const casinosApi = {
   getAll: (params?: { category?: string; status?: string; page?: number; limit?: number }) =>
     apiClient.get<any[]>('/casinos', params),
@@ -171,7 +163,6 @@ export const casinosApi = {
     apiClient.get<{ categories: string[]; statuses: string[]; countries: string[] }>('/casinos/filters/options'),
 };
 
-// Blogs API
 export const blogsApi = {
   getAll: (params?: { status?: string; category?: string; page?: number; limit?: number }) =>
     apiClient.get<any[]>('/blogs', params),
@@ -189,13 +180,11 @@ export const blogsApi = {
     apiClient.delete('/blogs/' + id),
 };
 
-// Users API
 export const usersApi = {
   login: (email: string, password: string) =>
     apiClient.post<{ user: any; token: string }>('/users/login', { email, password }),
 
   getAll: (params?: { role?: string; page?: number; limit?: number }) => {
-    // Filter out undefined values and ensure limit is valid
     const cleanParams: Record<string, string | number> = {}
     if (params) {
       if (params.role !== undefined) cleanParams.role = params.role
@@ -223,7 +212,6 @@ export const usersApi = {
     apiClient.put<any>('/users/me/password', { password }),
 };
 
-// Stats API
 export const statsApi = {
   getStats: () =>
     apiClient.get<{
@@ -249,9 +237,7 @@ export const statsApi = {
     }>('/stats'),
 };
 
-// Support API
 export const supportApi = {
-  // Guest sends message (and creates/updates conversation)
   sendMessage: (payload: {
     guestId: string;
     name?: string;
@@ -260,26 +246,20 @@ export const supportApi = {
     pageUrl?: string;
   }) => apiClient.post<{ conversationId: number }>('/support/messages', payload),
 
-  // Admin: list conversations
   getConversations: (params?: { status?: 'open' | 'closed' }) =>
     apiClient.get<any[]>('/support/conversations', params),
 
-  // Admin: get one conversation with messages
   getConversationMessages: (id: number) =>
     apiClient.get<any>(`/support/conversations/${id}/messages`),
 
-  // Admin: reply to conversation
   replyToConversation: (id: number, message: string) =>
     apiClient.post(`/support/conversations/${id}/reply`, { message }),
 
-  // Admin: update conversation status
   updateConversationStatus: (id: number, status: 'open' | 'closed') =>
     apiClient.patch(`/support/conversations/${id}/status`, { status } as any),
 
-  // Admin: get support config
   getConfig: () => apiClient.get<{ supportEnabled: boolean }>('/support/config'),
 
-  // Admin: update support config
   updateConfig: (supportEnabled: boolean) =>
     apiClient.patch<{ supportEnabled: boolean }>('/support/config', { supportEnabled }),
 };

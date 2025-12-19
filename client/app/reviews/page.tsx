@@ -15,7 +15,6 @@ export default function ReviewsPage() {
 
   useEffect(() => {
     getCasinos().then((allCasinos) => {
-      // Only show casinos with reviews that are published
       setCasinos(allCasinos.filter((c) => c.hasReview && c.status === "published"))
       setIsLoading(false)
     }).catch((error) => {
@@ -30,12 +29,10 @@ export default function ReviewsPage() {
 
   return (
     <div className="min-h-screen bg-white relative">
-      {/* Gradient background */}
       <div className="absolute top-0 left-0 w-full h-[260px] bg-gradient-to-b from-purple-600/30 via-fuchsia-500/15 to-transparent pointer-events-none z-0"></div>
 
       <SiteHeader />
 
-      {/* Hero Section */}
       <section className="pt-32 pb-20 px-4 relative z-10">
         <div className="container mx-auto max-w-6xl text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-600 text-white text-sm font-semibold mb-4 shadow-md shadow-purple-500/40">
@@ -53,7 +50,6 @@ export default function ReviewsPage() {
         </div>
       </section>
 
-      {/* Reviews Grid */}
       <section className="py-20 px-4 relative z-10">
         <div className="container mx-auto max-w-7xl">
           {casinos.length === 0 ? (

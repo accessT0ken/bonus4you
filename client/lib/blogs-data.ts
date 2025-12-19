@@ -1,5 +1,3 @@
-// blogs-data.ts
-
 export interface BlogPost {
   id: string
   title: string
@@ -16,7 +14,6 @@ export interface BlogPost {
   tags?: string[]
 }
 
-// Transform API response to BlogPost format
 function transformApiBlog(apiBlog: any): BlogPost {
   return {
     id: String(apiBlog.id),
@@ -35,25 +32,20 @@ function transformApiBlog(apiBlog: any): BlogPost {
   }
 }
 
-// Cache for client-side
 let cachedBlogs: BlogPost[] | null = null
 let cacheTimestamp: number = 0
-const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+const CACHE_DURATION = 5 * 60 * 1000
 
-// Clear cache
 export function clearBlogCache() {
   cachedBlogs = null
   cacheTimestamp = 0
 }
 
-// Get all blogs from API
 export async function getBlogs(): Promise<BlogPost[]> {
-  // Return cached data if available and fresh
   if (cachedBlogs && Date.now() - cacheTimestamp < CACHE_DURATION) {
     return cachedBlogs
   }
 
-  // Server-side: return empty array (will be fetched via API routes)
   if (typeof window === "undefined") {
     return []
   }
@@ -71,7 +63,6 @@ export async function getBlogs(): Promise<BlogPost[]> {
     return []
   } catch (error) {
     console.error('Failed to fetch blogs:', error)
-    // Return cached data if available, even if stale
     if (cachedBlogs) {
       return cachedBlogs
     }
@@ -79,7 +70,6 @@ export async function getBlogs(): Promise<BlogPost[]> {
   }
 }
 
-// Get blog by slug
 export async function getBlogBySlug(slug: string): Promise<BlogPost | undefined> {
   if (typeof window === "undefined") {
     return undefined
@@ -96,7 +86,6 @@ export async function getBlogBySlug(slug: string): Promise<BlogPost | undefined>
     return undefined
   } catch (error) {
     console.error('Failed to fetch blog:', error)
-    // Fallback to cache
     if (cachedBlogs) {
       return cachedBlogs.find(b => b.slug === slug)
     }
@@ -104,15 +93,11 @@ export async function getBlogBySlug(slug: string): Promise<BlogPost | undefined>
   }
 }
 
-// Get published blogs only
 export async function getPublishedBlogs(): Promise<BlogPost[]> {
   const blogs = await getBlogs()
   return blogs.filter((b) => b.status === "published")
 }
 
-// Save blogs (for admin - updates API)
 export async function saveBlogs(blogs: BlogPost[]): Promise<void> {
-  // This is mainly for admin operations
-  // Individual updates should use update functions
   clearBlogCache()
 }

@@ -13,9 +13,11 @@ function question(query: string): Promise<string> {
   });
 }
 
+/**
+ * Update role enum in database if needed
+ */
 async function updateRoleEnum() {
   try {
-    // Check if the enum needs to be updated
     const [rows] = await pool.execute(
       `SELECT COLUMN_TYPE 
        FROM INFORMATION_SCHEMA.COLUMNS 
@@ -27,11 +29,9 @@ async function updateRoleEnum() {
     const columnInfo = (rows as any[])[0];
     const currentEnum = columnInfo?.COLUMN_TYPE || '';
     
-    // If enum doesn't include the new roles, update it
     if (!currentEnum.includes('moderator') || !currentEnum.includes('owner')) {
       console.log('🔄 Updating role enum to include moderator, admin, owner...');
       
-      // MySQL doesn't support direct ENUM modification, so we need to alter the column
       await pool.execute(`
         ALTER TABLE users 
         MODIFY COLUMN role ENUM('moderator', 'admin', 'owner') DEFAULT 'moderator'
@@ -40,7 +40,6 @@ async function updateRoleEnum() {
       console.log('✅ Role enum updated successfully');
     }
   } catch (error: any) {
-    // If error is about enum values, try to handle it
     if (error.message.includes('ENUM')) {
       console.log('⚠️  Note: You may need to manually update the role enum in the database.');
       console.log('   Run: ALTER TABLE users MODIFY COLUMN role ENUM(\'moderator\', \'admin\', \'owner\') DEFAULT \'moderator\';');
@@ -50,15 +49,16 @@ async function updateRoleEnum() {
   }
 }
 
+/**
+ * Create a new user account interactively
+ */
 async function createUser() {
   try {
     console.log('\n📝 Create New User Account\n');
     console.log('Available roles: moderator, admin, owner\n');
 
-    // Update role enum first
     await updateRoleEnum();
 
-    // Get user input
     const email = await question('Email: ');
     if (!email || !email.includes('@')) {
       console.error('❌ Invalid email address');
@@ -89,7 +89,6 @@ async function createUser() {
       process.exit(1);
     }
 
-    // Check if email already exists
     const [existing] = await pool.execute(
       'SELECT id FROM users WHERE email = ?',
       [email]
@@ -101,10 +100,8 @@ async function createUser() {
       process.exit(1);
     }
 
-    // Hash password
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // Define permissions based on role
     const rolePermissions: Record<string, string[]> = {
       moderator: ['manage_casinos', 'edit_reviews', 'view_stats', 'publish_content'],
       admin: ['manage_users', 'manage_casinos', 'edit_reviews', 'view_stats', 'publish_content'],
@@ -113,7 +110,6 @@ async function createUser() {
 
     const permissions = rolePermissions[role] || [];
 
-    // Insert user
     const [result] = await pool.execute(
       `INSERT INTO users (email, name, password_hash, role, permissions, is_active)
        VALUES (?, ?, ?, ?, ?, 1)`,
@@ -150,7 +146,6 @@ async function createUser() {
   }
 }
 
-// Run the script
 createUser().catch((error) => {
   console.error('❌ Fatal error:', error);
   process.exit(1);

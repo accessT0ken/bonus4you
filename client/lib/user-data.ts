@@ -1,4 +1,3 @@
-// User data structure and management
 export type UserRole = "moderator" | "admin" | "owner"
 export type Permission = "manage_users" | "manage_casinos" | "edit_reviews" | "view_stats" | "publish_content" | "manage_system"
 
@@ -13,7 +12,6 @@ export interface User {
   isActive: boolean
 }
 
-// Payload for creating a new user (includes password)
 export interface NewUserInput {
   email: string
   name: string
@@ -21,16 +19,13 @@ export interface NewUserInput {
   password: string
 }
 
-// Role permissions mapping
 export const rolePermissions: Record<UserRole, Permission[]> = {
   moderator: ["manage_casinos", "edit_reviews", "view_stats", "publish_content"],
   admin: ["manage_users", "manage_casinos", "edit_reviews", "view_stats", "publish_content"],
   owner: ["manage_users", "manage_casinos", "edit_reviews", "view_stats", "publish_content", "manage_system"],
 }
 
-// Transform API response to User format
 function transformApiUser(apiUser: any): User {
-  // Parse permissions if they come as JSON string
   let permissions: Permission[] = []
   if (apiUser.permissions) {
     if (typeof apiUser.permissions === 'string') {
@@ -57,7 +52,6 @@ function transformApiUser(apiUser: any): User {
   }
 }
 
-// Get users from API
 export async function getUsers(): Promise<User[]> {
   if (typeof window === "undefined") {
     return []
@@ -65,8 +59,6 @@ export async function getUsers(): Promise<User[]> {
 
   try {
     const { usersApi } = await import('./api-client')
-    // Fetch all users by making multiple requests if needed
-    // First get total count, then fetch in batches
     let allUsers: User[] = []
     let page = 1
     const limit = 100 // Max allowed by API
@@ -78,7 +70,6 @@ export async function getUsers(): Promise<User[]> {
         const users = response.data.map(transformApiUser)
         allUsers = [...allUsers, ...users]
         
-        // If we got fewer users than the limit, we've reached the end
         if (users.length < limit) {
           break
         }
@@ -87,7 +78,6 @@ export async function getUsers(): Promise<User[]> {
         break
       }
       
-      // Safety check to prevent infinite loops
       if (page > 100) {
         break
       }
@@ -100,13 +90,11 @@ export async function getUsers(): Promise<User[]> {
   }
 }
 
-// Get user by email
 export async function getUserByEmail(email: string): Promise<User | undefined> {
   const users = await getUsers()
   return users.find((u) => u.email === email)
 }
 
-// Create new user
 export async function createUser(user: NewUserInput): Promise<User> {
   if (typeof window === "undefined") {
     throw new Error('Cannot create user on server side')
@@ -132,7 +120,6 @@ export async function createUser(user: NewUserInput): Promise<User> {
   }
 }
 
-// Update user
 export async function updateUser(userId: string, updates: Partial<User> & { password?: string }): Promise<boolean> {
   if (typeof window === "undefined") {
     return false
@@ -155,7 +142,6 @@ export async function updateUser(userId: string, updates: Partial<User> & { pass
   }
 }
 
-// Update password for the currently authenticated user via /users/me/password
 export async function updateMyPassword(password: string): Promise<boolean> {
   if (typeof window === "undefined") {
     return false
@@ -171,7 +157,6 @@ export async function updateMyPassword(password: string): Promise<boolean> {
   }
 }
 
-// Delete user
 export async function deleteUser(userId: string): Promise<boolean> {
   if (typeof window === "undefined") {
     return false
@@ -187,13 +172,11 @@ export async function deleteUser(userId: string): Promise<boolean> {
   }
 }
 
-// Check if user has permission
 export function hasPermission(user: User | null, permission: Permission): boolean {
   if (!user || !user.isActive) {
     return false
   }
   
-  // Owner role should have all permissions
   if (user.role === 'owner') {
     return true
   }
@@ -201,7 +184,6 @@ export function hasPermission(user: User | null, permission: Permission): boolea
   return user.permissions.includes(permission)
 }
 
-// Get current user from auth token
 export async function getCurrentUser(): Promise<User | null> {
   if (typeof window === "undefined") {
     return null
@@ -222,7 +204,6 @@ export async function getCurrentUser(): Promise<User | null> {
   }
 }
 
-// Login user
 export async function loginUser(email: string, password: string): Promise<{ user: User; token: string }> {
   if (typeof window === "undefined") {
     throw new Error('Cannot login on server side')
@@ -235,7 +216,6 @@ export async function loginUser(email: string, password: string): Promise<{ user
     if (response.data && response.data.user && response.data.token) {
       const user = transformApiUser(response.data.user)
       
-      // Store token and email
       localStorage.setItem('auth_token', response.data.token)
       localStorage.setItem('admin_email', user.email)
       
@@ -252,7 +232,6 @@ export async function loginUser(email: string, password: string): Promise<{ user
   }
 }
 
-// Logout user
 export function logoutUser(): void {
   if (typeof window === "undefined") {
     return

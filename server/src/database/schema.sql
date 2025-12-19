@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS casinos (
   bonus_text VARCHAR(100) DEFAULT '',
   rewards_count INT DEFAULT 0,
   category ENUM('cs2', 'general') DEFAULT 'cs2',
-  country ENUM('latvia', 'usa'),
+  country VARCHAR(100),
   min_deposit VARCHAR(50),
   license VARCHAR(100),
   promo_code VARCHAR(100),

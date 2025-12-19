@@ -2,36 +2,41 @@ import { Router } from 'express';
 import { param, query, body } from 'express-validator';
 import { asyncHandler } from '../middleware/asyncHandler';
 import { validate } from '../middleware/validation';
+import { requireAuth } from '../middleware/auth';
 import { NotFoundError, BadRequestError } from '../types/errors';
 import pool from '../config/database';
 
-const router = Router();
+const router: Router = Router();
 
-// GET /casinos - List all casinos with filtering
+/**
+ * GET /casinos - List all casinos with filtering
+ * @route GET /casinos
+ * @param {string} [query.category] - Filter by category (cs2, general)
+ * @param {string} [query.status] - Filter by status (draft, published)
+ * @param {string} [query.page] - Page number (default: 1)
+ * @param {string} [query.limit] - Items per page (default: 10, max: 100)
+ * @returns {Object} Paginated list of casinos
+ */
 router.get(
   '/',
   validate([
     query('category').optional().isIn(['cs2', 'general']).withMessage('category must be either "cs2" or "general"'),
     query('status').optional().custom((value) => {
-      // Allow undefined, null, empty string, or valid status values
       if (value === undefined || value === null || value === '') {
-        return true; // No filter - return all casinos
+        return true;
       }
       if (value === 'draft' || value === 'published') {
         return true;
       }
       throw new Error('status must be either "draft" or "published"');
     }),
-    // Page and limit are sanitized in the route handler, no validation needed
   ]),
   asyncHandler(async (req, res) => {
     const { category, status, page: pageParam = '1', limit: limitParam } = req.query;
     
-    // Sanitize and validate page
     const pageNum = Math.max(parseInt(String(pageParam)) || 1, 1);
     
-    // Sanitize and validate limit (default to 10 if not provided, clamp to 1-100)
-    let limitNum = 10; // Default
+    let limitNum = 10;
     if (limitParam !== undefined && limitParam !== null && limitParam !== '') {
       const parsed = parseInt(String(limitParam));
       if (!isNaN(parsed) && parsed > 0) {
@@ -69,7 +74,6 @@ router.get(
     );
     const total = (countRows as any[])[0].total;
 
-    // Parse JSON fields
     const casinos = (rows as any[]).map(casino => ({
       ...casino,
       paymentMethodIds: casino.payment_method_ids ? JSON.parse(casino.payment_method_ids) : [],
@@ -96,7 +100,12 @@ router.get(
   })
 );
 
-// GET /casinos/:slug - Get casino by slug
+/**
+ * GET /casinos/:slug - Get casino by slug
+ * @route GET /casinos/:slug
+ * @param {string} param.slug - Casino slug
+ * @returns {Object} Casino details
+ */
 router.get(
   '/:slug',
   validate([
@@ -137,9 +146,28 @@ router.get(
   })
 );
 
-// POST /casinos - Create new casino
+/**
+ * POST /casinos - Create new casino (moderator/admin/owner only)
+ * @route POST /casinos
+ * @requires {string[]} auth - ['moderator', 'admin', 'owner']
+ * @param {string} body.name - Casino name (1-100 chars)
+ * @param {string} body.slug - Casino slug (1-100 chars)
+ * @param {string} [body.logo] - Logo URL (max 500 chars)
+ * @param {string} [body.tagType] - Tag type (free, deposit)
+ * @param {string} [body.tagText] - Tag text (max 50 chars)
+ * @param {number} [body.rating] - Rating (0-5)
+ * @param {string} [body.bonusText] - Bonus text (max 100 chars)
+ * @param {string} [body.category] - Category (cs2, general)
+ * @param {string} [body.status] - Status (draft, published)
+ * @param {string} [body.description] - Description (max 1000 chars)
+ * @param {number[]} [body.paymentMethodIds] - Payment method IDs
+ * @param {number[]} [body.tagIds] - Tag IDs
+ * @param {number[]} [body.gameModeIds] - Game mode IDs
+ * @returns {Object} Created casino
+ */
 router.post(
   '/',
+  requireAuth(['moderator', 'admin', 'owner']),
   validate([
     body('name').trim().isLength({ min: 1, max: 100 }).withMessage('name must be between 1 and 100 characters'),
     body('slug').trim().isLength({ min: 1, max: 100 }).withMessage('slug must be between 1 and 100 characters'),
@@ -149,6 +177,7 @@ router.post(
     body('rating').optional().isFloat({ min: 0, max: 5 }).withMessage('rating must be between 0 and 5'),
     body('bonusText').optional().trim().isLength({ max: 100 }).withMessage('bonusText must be shorter than or equal to 100 characters'),
     body('category').optional().isIn(['cs2', 'general']).withMessage('category must be either "cs2" or "general"'),
+    body('country').optional().trim().isLength({ max: 100 }).withMessage('country must be shorter than or equal to 100 characters'),
     body('status').optional().isIn(['draft', 'published']).withMessage('status must be either "draft" or "published"'),
     body('description').optional().trim().isLength({ max: 1000 }).withMessage('description must be shorter than or equal to 1000 characters'),
     body('paymentMethodIds').optional().isArray().withMessage('paymentMethodIds must be an array'),
@@ -180,7 +209,6 @@ router.post(
       reviewContent,
     } = req.body;
 
-    // Check if slug already exists
     const [existing] = await pool.execute(
       'SELECT id FROM casinos WHERE slug = ?',
       [slug]
@@ -190,12 +218,14 @@ router.post(
       throw new BadRequestError('Casino with this slug already exists');
     }
 
+    const { country } = req.body;
+    
     const [result] = await pool.execute(
       `INSERT INTO casinos (
         name, slug, logo, tag_type, tag_text, rating, bonus_text, rewards_count,
-        category, status, description, founded, license, min_deposit, promo_code,
+        category, country, status, description, founded, license, min_deposit, promo_code,
         payment_method_ids, tag_ids, game_mode_ids, is_featured, has_review, review_content
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         name,
         slug,
@@ -206,6 +236,7 @@ router.post(
         bonusText,
         rewardsCount,
         category,
+        (category === 'cs2' ? null : (country || null)),
         status,
         description || null,
         founded || null,
@@ -249,22 +280,34 @@ router.post(
   })
 );
 
-// PUT /casinos/:id - Update casino
+/**
+ * PUT /casinos/:id - Update casino (moderator/admin/owner only)
+ * @route PUT /casinos/:id
+ * @requires {string[]} auth - ['moderator', 'admin', 'owner']
+ * @param {string} param.id - Casino ID
+ * @param {string} [body.name] - Casino name (1-100 chars)
+ * @param {string} [body.slug] - Casino slug (1-100 chars)
+ * @param {string} [body.description] - Description (max 1000 chars)
+ * @param {number} [body.rating] - Rating (0-5)
+ * @returns {Object} Updated casino
+ */
 router.put(
   '/:id',
+  requireAuth(['moderator', 'admin', 'owner']),
   validate([
     param('id').matches(/^\d+$/).withMessage('Validation failed (numeric string is expected)'),
     body('name').optional().trim().isLength({ min: 1, max: 100 }).withMessage('name must be between 1 and 100 characters'),
     body('slug').optional().trim().isLength({ min: 1, max: 100 }).withMessage('slug must be between 1 and 100 characters'),
     body('description').optional().trim().isLength({ max: 1000 }).withMessage('description must be shorter than or equal to 1000 characters'),
     body('rating').optional().isFloat({ min: 0, max: 5 }).withMessage('rating must be between 0 and 5'),
+    body('category').optional().isIn(['cs2', 'general']).withMessage('category must be either "cs2" or "general"'),
+    body('country').optional().trim().isLength({ max: 100 }).withMessage('country must be shorter than or equal to 100 characters'),
   ]),
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     const casinoId = parseInt(id);
     const updates = req.body;
 
-    // Check if casino exists
     const [existing] = await pool.execute(
       'SELECT * FROM casinos WHERE id = ?',
       [casinoId]
@@ -274,7 +317,6 @@ router.put(
       throw new NotFoundError('CASINO_NOT_FOUND');
     }
 
-    // Check if slug is being updated and if it conflicts
     if (updates.slug) {
       const [slugCheck] = await pool.execute(
         'SELECT id FROM casinos WHERE slug = ? AND id != ?',
@@ -285,13 +327,14 @@ router.put(
       }
     }
 
-    // Build update query dynamically
     const updateFields: string[] = [];
     const updateValues: any[] = [];
+    const currentCasino = (existing as any[])[0];
+    const newCategory = updates.category !== undefined ? updates.category : currentCasino.category;
 
     const allowedFields = [
       'name', 'slug', 'logo', 'tag_type', 'tag_text', 'rating', 'bonus_text',
-      'rewards_count', 'category', 'status', 'description', 'founded', 'license',
+      'rewards_count', 'category', 'country', 'status', 'description', 'founded', 'license',
       'min_deposit', 'promo_code', 'payment_method_ids', 'tag_ids', 'game_mode_ids',
       'is_featured', 'has_review', 'review_content'
     ];
@@ -310,6 +353,20 @@ router.put(
         } else if (key === 'hasReview') {
           updateFields.push('has_review = ?');
           updateValues.push(updates[key] ? 1 : 0);
+        } else if (key === 'category') {
+          updateFields.push('category = ?');
+          updateValues.push(updates[key]);
+          // If changing to CS2, clear country
+          if (updates[key] === 'cs2') {
+            updateFields.push('country = ?');
+            updateValues.push(null);
+          }
+        } else if (key === 'country') {
+          // Only set country if category is not cs2
+          if (newCategory !== 'cs2') {
+            updateFields.push('country = ?');
+            updateValues.push(updates[key] || null);
+          }
         } else {
           const dbField = key.replace(/([A-Z])/g, '_$1').toLowerCase();
           if (allowedFields.includes(dbField)) {
@@ -359,9 +416,16 @@ router.put(
   })
 );
 
-// DELETE /casinos/:id - Delete casino
+/**
+ * DELETE /casinos/:id - Delete casino (admin/owner only)
+ * @route DELETE /casinos/:id
+ * @requires {string[]} auth - ['admin', 'owner']
+ * @param {string} param.id - Casino ID
+ * @returns {Object} Success message
+ */
 router.delete(
   '/:id',
+  requireAuth(['admin', 'owner']),
   validate([
     param('id').matches(/^\d+$/).withMessage('Validation failed (numeric string is expected)'),
   ]),
@@ -387,7 +451,12 @@ router.delete(
   })
 );
 
-// POST /casinos/:id/stats/landing-page-view - Track landing page view
+/**
+ * POST /casinos/:id/stats/landing-page-view - Track landing page view
+ * @route POST /casinos/:id/stats/landing-page-view
+ * @param {string} param.id - Casino ID
+ * @returns {Object} Success message
+ */
 router.post(
   '/:id/stats/landing-page-view',
   validate([
@@ -409,7 +478,12 @@ router.post(
   })
 );
 
-// POST /casinos/:id/stats/claim-bonus-click - Track claim bonus click
+/**
+ * POST /casinos/:id/stats/claim-bonus-click - Track claim bonus click
+ * @route POST /casinos/:id/stats/claim-bonus-click
+ * @param {string} param.id - Casino ID
+ * @returns {Object} Success message
+ */
 router.post(
   '/:id/stats/claim-bonus-click',
   validate([
@@ -431,7 +505,12 @@ router.post(
   })
 );
 
-// POST /casinos/:id/stats/review-read - Track review read
+/**
+ * POST /casinos/:id/stats/review-read - Track review read
+ * @route POST /casinos/:id/stats/review-read
+ * @param {string} param.id - Casino ID
+ * @returns {Object} Success message
+ */
 router.post(
   '/:id/stats/review-read',
   validate([
@@ -453,23 +532,24 @@ router.post(
   })
 );
 
-// GET /casinos/filters/options - Get filter options from database
+/**
+ * GET /casinos/filters/options - Get filter options from database
+ * @route GET /casinos/filters/options
+ * @returns {Object} Filter options (categories, statuses, countries)
+ */
 router.get(
   '/filters/options',
   asyncHandler(async (req, res) => {
-    // Get unique categories
     const [categoryRows] = await pool.execute(
       'SELECT DISTINCT category FROM casinos WHERE category IS NOT NULL ORDER BY category'
     );
     const categories = (categoryRows as any[]).map(row => row.category);
 
-    // Get unique statuses
     const [statusRows] = await pool.execute(
       'SELECT DISTINCT status FROM casinos WHERE status IS NOT NULL ORDER BY status'
     );
     const statuses = (statusRows as any[]).map(row => row.status);
 
-    // Get unique countries
     const [countryRows] = await pool.execute(
       'SELECT DISTINCT country FROM casinos WHERE country IS NOT NULL ORDER BY country'
     );

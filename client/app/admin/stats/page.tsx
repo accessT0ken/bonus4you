@@ -13,7 +13,6 @@ export default function StatsPage() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Fetch all casinos (not just published) for admin stats
     import("@/lib/api-client").then(({ casinosApi }) => {
       casinosApi.getAll({ limit: 1000 }).then((response) => {
         if (response.data && Array.isArray(response.data)) {
@@ -96,7 +95,6 @@ export default function StatsPage() {
   const publishedCasinos = casinos.filter((c) => c.status === "published").length
   const casinosWithReviews = casinos.filter((c) => c.hasReview).length
 
-  // Calculate conversion rates
   const claimConversionRate =
     totalLandingViews > 0 ? ((totalClaimClicks / totalLandingViews) * 100).toFixed(2) : "0.00"
   const reviewConversionRate =

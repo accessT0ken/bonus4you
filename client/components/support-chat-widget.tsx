@@ -65,7 +65,6 @@ export function SupportChatWidget() {
   useEffect(() => {
     if (typeof window === "undefined") return
 
-    // Load support config
     supportApi
       .getConfig()
       .then((res) => {
@@ -91,7 +90,6 @@ export function SupportChatWidget() {
 
     const newErrors: ChatErrors = {}
 
-    // Client-side validation
     if (name && name.length > 100) {
       newErrors.name = "Name must be 100 characters or less."
     }
@@ -117,7 +115,6 @@ export function SupportChatWidget() {
 
     setErrors({})
 
-    // Save name/email to cookies so we remember them
     if (name.trim()) setCookie(NAME_COOKIE_KEY, name.trim())
     if (email.trim()) setCookie(EMAIL_COOKIE_KEY, email.trim())
 
@@ -145,7 +142,6 @@ export function SupportChatWidget() {
       })
     } catch (error: any) {
       console.error("Failed to send support message:", error)
-      // revert optimistic send
       setMessages((prev) => prev.filter((m) => m.id !== tempId))
       setErrors((prev) => ({
         ...prev,

@@ -3,21 +3,17 @@ import { Router } from 'express';
 import { body, query, param } from 'express-validator';
 import { asyncHandler } from '../middleware/asyncHandler';
 import { validate } from '../middleware/validation';
+import { requireAuth } from '../middleware/auth';
+import { rateLimit } from '../middleware/rateLimit';
 import { BadRequestError, NotFoundError } from '../types/errors';
 import pool from '../config/database';
 
 const router: import('express').Router = Router();
 
-// Simple in-memory rate limiting for support messages
-type RateEntry = {
-  count: number;
-  windowStart: number;
-};
-
-const rateLimitMap = new Map<string, RateEntry>();
-const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
-const RATE_LIMIT_MAX_MESSAGES = 5; // per window per guest+ip
-
+/**
+ * Check if support is enabled
+ * @returns {Promise<boolean>} True if support is enabled
+ */
 async function isSupportEnabled(): Promise<boolean> {
   const [rows] = await pool.execute(
     'SELECT support_enabled FROM site_settings WHERE id = 1'
@@ -27,7 +23,11 @@ async function isSupportEnabled(): Promise<boolean> {
   return settings[0].support_enabled === 1;
 }
 
-// Helper to get guest info
+/**
+ * Get guest metadata from request
+ * @param {any} req - Express request object
+ * @returns {Object} Guest IP and user agent
+ */
 function getGuestMeta(req: any) {
   const ip =
     (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
@@ -38,9 +38,16 @@ function getGuestMeta(req: any) {
   return { ip, userAgent };
 }
 
-// GET /support/conversations - list conversations for admin
+/**
+ * GET /support/conversations - List conversations for admin (admin/owner only)
+ * @route GET /support/conversations
+ * @requires {string[]} auth - ['admin', 'owner']
+ * @param {string} [query.status] - Filter by status (open, closed)
+ * @returns {Object} List of conversations
+ */
 router.get(
   '/conversations',
+  requireAuth(['admin', 'owner']),
   validate([
     query('status').optional().isIn(['open', 'closed']).withMessage('status must be open or closed'),
   ]),
@@ -78,9 +85,16 @@ router.get(
   })
 );
 
-// GET /support/conversations/:id/messages - list messages for a conversation
+/**
+ * GET /support/conversations/:id/messages - List messages for a conversation (admin/owner only)
+ * @route GET /support/conversations/:id/messages
+ * @requires {string[]} auth - ['admin', 'owner']
+ * @param {string} param.id - Conversation ID
+ * @returns {Object} Conversation and messages
+ */
 router.get(
   '/conversations/:id/messages',
+  requireAuth(['admin', 'owner']),
   validate([
     param('id').matches(/^\d+$/).withMessage('Validation failed (numeric string is expected)'),
   ]),
@@ -119,9 +133,27 @@ router.get(
   })
 );
 
-// POST /support/messages - guest sends message (creates conversation if needed)
+/**
+ * POST /support/messages - Guest sends message (creates conversation if needed)
+ * @route POST /support/messages
+ * @param {string} body.guestId - Guest identifier (1-64 chars)
+ * @param {string} [body.name] - Guest name (max 100 chars)
+ * @param {string} [body.email] - Guest email
+ * @param {string} body.message - Message content (3-1000 chars)
+ * @param {string} [body.pageUrl] - Current page URL (max 500 chars)
+ * @returns {Object} Conversation ID
+ */
 router.post(
   '/messages',
+  rateLimit(60_000, 5, (req) => {
+    const { guestId } = req.body;
+    const ip =
+      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+      req.socket?.remoteAddress ||
+      req.ip ||
+      'unknown';
+    return `${guestId}|${ip}`;
+  }),
   validate([
     body('guestId').trim().isLength({ min: 1, max: 64 }).withMessage('guestId is required'),
     body('name').optional().trim().isLength({ max: 100 }).withMessage('name must be <= 100 chars'),
@@ -140,22 +172,6 @@ router.post(
     const { guestId, name, email, message, pageUrl } = req.body;
     const { ip, userAgent } = getGuestMeta(req);
 
-    // Rate limiting per guest + IP
-    const key = `${guestId}|${ip || 'unknown'}`;
-    const now = Date.now();
-    const existing = rateLimitMap.get(key);
-
-    if (!existing || now - existing.windowStart > RATE_LIMIT_WINDOW_MS) {
-      rateLimitMap.set(key, { count: 1, windowStart: now });
-    } else {
-      if (existing.count >= RATE_LIMIT_MAX_MESSAGES) {
-        throw new BadRequestError('Too many messages. Please wait a moment before trying again.');
-      }
-      existing.count += 1;
-      rateLimitMap.set(key, existing);
-    }
-
-    // Find open conversation for this guest
     const [existingRows] = await pool.execute(
       'SELECT * FROM support_conversations WHERE guest_id = ? AND status = "open" ORDER BY last_activity_at DESC LIMIT 1',
       [guestId]
@@ -167,7 +183,6 @@ router.post(
       const conv = (existingRows as any[])[0];
       conversationId = conv.id;
 
-      // Optionally update name/email/last_page if provided
       const updates: string[] = [];
       const params: any[] = [];
 
@@ -192,7 +207,6 @@ router.post(
         );
       }
     } else {
-      // Create new conversation
       const [insert] = await pool.execute(
         `INSERT INTO support_conversations (guest_id, name, email, ip_address, user_agent, last_page, status)
          VALUES (?, ?, ?, ?, ?, ?, 'open')`,
@@ -202,14 +216,12 @@ router.post(
       conversationId = result.insertId;
     }
 
-    // Insert message
     await pool.execute(
       `INSERT INTO support_messages (conversation_id, sender_type, sender_id, message, page_url)
        VALUES (?, 'guest', NULL, ?, ?)`,
       [conversationId, message, pageUrl || null]
     );
 
-    // Update last activity
     await pool.execute(
       'UPDATE support_conversations SET last_activity_at = NOW(), last_page = COALESCE(?, last_page) WHERE id = ?',
       [pageUrl || null, conversationId]
@@ -223,9 +235,17 @@ router.post(
   })
 );
 
-// POST /support/conversations/:id/reply - admin replies to a conversation
+/**
+ * POST /support/conversations/:id/reply - Admin replies to a conversation (admin/owner only)
+ * @route POST /support/conversations/:id/reply
+ * @requires {string[]} auth - ['admin', 'owner']
+ * @param {string} param.id - Conversation ID
+ * @param {string} body.message - Reply message
+ * @returns {Object} Success message
+ */
 router.post(
   '/conversations/:id/reply',
+  requireAuth(['admin', 'owner']),
   validate([
     param('id').matches(/^\d+$/).withMessage('Validation failed (numeric string is expected)'),
     body('message').trim().isLength({ min: 1 }).withMessage('message is required'),
@@ -244,7 +264,6 @@ router.post(
       throw new NotFoundError('CONVERSATION_NOT_FOUND');
     }
 
-    // For now, we don't track which admin, just mark sender_type as admin
     await pool.execute(
       `INSERT INTO support_messages (conversation_id, sender_type, sender_id, message, page_url)
        VALUES (?, 'admin', NULL, ?, NULL)`,
@@ -263,9 +282,17 @@ router.post(
   })
 );
 
-// PATCH /support/conversations/:id/status - close or reopen a conversation
+/**
+ * PATCH /support/conversations/:id/status - Close or reopen a conversation (admin/owner only)
+ * @route PATCH /support/conversations/:id/status
+ * @requires {string[]} auth - ['admin', 'owner']
+ * @param {string} param.id - Conversation ID
+ * @param {string} body.status - New status (open, closed)
+ * @returns {Object} Success message
+ */
 router.patch(
   '/conversations/:id/status',
+  requireAuth(['admin', 'owner']),
   validate([
     param('id').matches(/^\d+$/).withMessage('Validation failed (numeric string is expected)'),
     body('status').isIn(['open', 'closed']).withMessage('status must be open or closed'),
@@ -296,7 +323,11 @@ router.patch(
   })
 );
 
-// GET /support/config - support settings
+/**
+ * GET /support/config - Get support settings
+ * @route GET /support/config
+ * @returns {Object} Support configuration
+ */
 router.get(
   '/config',
   asyncHandler(async (req, res) => {
@@ -308,9 +339,16 @@ router.get(
   })
 );
 
-// PATCH /support/config - update support settings (enable/disable)
+/**
+ * PATCH /support/config - Update support settings (enable/disable) (admin/owner only)
+ * @route PATCH /support/config
+ * @requires {string[]} auth - ['admin', 'owner']
+ * @param {boolean} body.supportEnabled - Support enabled status
+ * @returns {Object} Updated support configuration
+ */
 router.patch(
   '/config',
+  requireAuth(['admin', 'owner']),
   validate([
     body('supportEnabled').isBoolean().withMessage('supportEnabled must be a boolean'),
   ]),

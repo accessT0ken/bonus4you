@@ -18,7 +18,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
 
   useEffect(() => {
-    // Check if user is logged in (check localStorage and token)
     const authStatus = localStorage.getItem("admin_authenticated")
     const token = localStorage.getItem("auth_token")
     if (authStatus === "true" && token) {

@@ -5,7 +5,7 @@ import usersRouter from './users';
 import statsRouter from './stats';
 import supportRouter from './support';
 
-const router = Router();
+const router: Router = Router();
 
 router.use('/casinos', casinosRouter);
 router.use('/blogs', blogsRouter);
@@ -13,7 +13,11 @@ router.use('/users', usersRouter);
 router.use('/stats', statsRouter);
 router.use('/support', supportRouter);
 
-// Health check endpoint
+/**
+ * GET /health - Health check endpoint
+ * @route GET /health
+ * @returns {Object} Health status and timestamp
+ */
 router.get('/health', (req, res) => {
   res.json({
     code: 200,

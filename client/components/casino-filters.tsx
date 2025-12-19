@@ -24,7 +24,6 @@ interface CasinoFiltersProps {
 export function CasinoFilters({ filters, onFiltersChange, casinos }: CasinoFiltersProps) {
   const [isOpen, setIsOpen] = useState(false)
 
-  // Get unique values from casinos
   const availableLicenses = Array.from(new Set(casinos.map(c => c.license).filter(Boolean))) as string[]
   const availableTagIds = Array.from(new Set(casinos.flatMap(c => c.tagIds || [])))
   const availablePaymentMethodIds = Array.from(new Set(casinos.flatMap(c => c.paymentMethodIds || [])))
@@ -103,7 +102,6 @@ export function CasinoFilters({ filters, onFiltersChange, casinos }: CasinoFilte
         )}
       </div>
 
-      {/* Tags Filter */}
       <div className="mb-6">
         <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Tags</h4>
         <div className="flex flex-col gap-2 max-h-40 overflow-y-auto">
@@ -135,7 +133,6 @@ export function CasinoFilters({ filters, onFiltersChange, casinos }: CasinoFilte
         </div>
       </div>
 
-      {/* Payment Methods Filter */}
       <div className="mb-6">
         <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Payment Methods</h4>
         <div className="flex flex-col gap-2 max-h-40 overflow-y-auto overflow-x-hidden">
@@ -170,7 +167,6 @@ export function CasinoFilters({ filters, onFiltersChange, casinos }: CasinoFilte
         </div>
       </div>
 
-      {/* Game Modes Filter */}
       <div className="mb-6">
         <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Game Modes</h4>
         <div className="flex flex-col gap-2 max-h-40 overflow-y-auto">
@@ -202,7 +198,6 @@ export function CasinoFilters({ filters, onFiltersChange, casinos }: CasinoFilte
         </div>
       </div>
 
-      {/* License Filter */}
       {availableLicenses.length > 0 && (
         <div className="mb-6">
           <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">License</h4>
@@ -224,7 +219,6 @@ export function CasinoFilters({ filters, onFiltersChange, casinos }: CasinoFilte
         </div>
       )}
 
-      {/* Min Deposit Filter */}
       <div className="mb-6">
         <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Min Deposit</h4>
         <div className="space-y-2">
@@ -235,12 +229,10 @@ export function CasinoFilters({ filters, onFiltersChange, casinos }: CasinoFilte
               placeholder="e.g. $10, $20"
               value={filters.minDeposit}
               onChange={(e) => {
-                // Only allow numbers, $, and spaces
                 const value = e.target.value.replace(/[^0-9$ ]/g, "")
                 updateFilters({ minDeposit: value })
               }}
               onKeyDown={(e) => {
-                // Prevent letters and special characters (except $, numbers, backspace, delete, arrow keys)
                 if (!/[0-9$]/.test(e.key) && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Tab'].includes(e.key) && !(e.ctrlKey || e.metaKey)) {
                   e.preventDefault()
                 }
@@ -254,7 +246,6 @@ export function CasinoFilters({ filters, onFiltersChange, casinos }: CasinoFilte
         </div>
       </div>
 
-      {/* Rating Filter */}
       <div className="mb-6">
         <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Rating</h4>
         <div className="space-y-4">

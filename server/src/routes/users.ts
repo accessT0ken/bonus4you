@@ -2,16 +2,25 @@ import { Router, Request } from 'express';
 import { param, query, body } from 'express-validator';
 import { asyncHandler } from '../middleware/asyncHandler';
 import { validate } from '../middleware/validation';
+import { requireAuth } from '../middleware/auth';
+import { loginRateLimit } from '../middleware/rateLimit';
 import { NotFoundError, BadRequestError, UnauthorizedError, ForbiddenError } from '../types/errors';
 import pool from '../config/database';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-const router = Router();
+const router: Router = Router();
 
-// POST /users/login - User login
+/**
+ * POST /users/login - User login
+ * @route POST /users/login
+ * @param {string} body.email - User email
+ * @param {string} body.password - User password
+ * @returns {Object} User data and JWT token
+ */
 router.post(
   '/login',
+  loginRateLimit,
   validate([
     body('email').isEmail().withMessage('email must be a valid email address'),
     body('password').trim().isLength({ min: 1 }).withMessage('password is required'),
@@ -37,20 +46,21 @@ router.post(
       throw new UnauthorizedError('Invalid email or password');
     }
 
-    // Update last login
     await pool.execute(
       'UPDATE users SET last_login = NOW() WHERE id = ?',
       [user.id]
     );
 
-    // Generate JWT token
+    if (!process.env.JWT_SECRET) {
+      throw new Error('JWT_SECRET environment variable is not set');
+    }
+
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET || 'your-secret-key',
+      process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
-    // Parse permissions
     const permissions = user.permissions ? JSON.parse(user.permissions) : [];
 
     res.json({
@@ -72,21 +82,27 @@ router.post(
   })
 );
 
-// GET /users - List all users
+/**
+ * GET /users - List all users (admin/owner only)
+ * @route GET /users
+ * @requires {string[]} auth - ['admin', 'owner']
+ * @param {string} [query.role] - Filter by role (moderator, admin, owner)
+ * @param {string} [query.page] - Page number (default: 1)
+ * @param {string} [query.limit] - Items per page (default: 10, max: 100)
+ * @returns {Object} Paginated list of users
+ */
 router.get(
   '/',
+  requireAuth(['admin', 'owner']),
   validate([
     query('role').optional().isIn(['moderator', 'admin', 'owner']).withMessage('role must be one of: moderator, admin, owner'),
-    // Page and limit are sanitized in the route handler, no validation needed to avoid errors
   ]),
   asyncHandler(async (req, res) => {
     const { role, page: pageParam = '1', limit: limitParam } = req.query;
     
-    // Sanitize and validate page
     const pageNum = Math.max(parseInt(String(pageParam)) || 1, 1);
     
-    // Sanitize and validate limit (default to 10 if not provided, clamp to 1-100)
-    let limitNum = 10; // Default
+    let limitNum = 10;
     if (limitParam !== undefined && limitParam !== null && limitParam !== '') {
       const parsed = parseInt(String(limitParam));
       if (!isNaN(parsed) && parsed > 0) {
@@ -118,7 +134,6 @@ router.get(
     );
     const total = (countRows as any[])[0].total;
 
-    // Parse JSON fields
     const users = (rows as any[]).map(user => {
       let permissions = []
       try {
@@ -147,9 +162,16 @@ router.get(
   })
 );
 
-// GET /users/:id - Get user by ID
+/**
+ * GET /users/:id - Get user by ID (admin/owner only)
+ * @route GET /users/:id
+ * @requires {string[]} auth - ['admin', 'owner']
+ * @param {string} param.id - User ID
+ * @returns {Object} User details
+ */
 router.get(
   '/:id',
+  requireAuth(['admin', 'owner']),
   validate([
     param('id').matches(/^\d+$/).withMessage('Validation failed (numeric string is expected)'),
   ]),
@@ -182,19 +204,28 @@ router.get(
   })
 );
 
-// POST /users - Create new user
+/**
+ * POST /users - Create new user (admin/owner only)
+ * @route POST /users
+ * @requires {string[]} auth - ['admin', 'owner']
+ * @param {string} body.email - User email
+ * @param {string} body.name - User name (1-100 chars)
+ * @param {string} body.password - User password (min 8 chars)
+ * @param {string} body.role - User role (moderator, admin, owner)
+ * @returns {Object} Created user
+ */
 router.post(
   '/',
+  requireAuth(['admin', 'owner']),
   validate([
     body('email').isEmail().withMessage('email must be a valid email address'),
     body('name').trim().isLength({ min: 1, max: 100 }).withMessage('name must be between 1 and 100 characters'),
-    body('password').trim().isLength({ min: 6 }).withMessage('password must be at least 6 characters'),
+    body('password').trim().isLength({ min: 8 }).withMessage('password must be at least 8 characters'),
     body('role').isIn(['moderator', 'admin', 'owner']).withMessage('role must be one of: moderator, admin, owner'),
   ]),
   asyncHandler(async (req, res) => {
     const { email, name, password, role } = req.body;
 
-    // Check if email already exists
     const [existing] = await pool.execute(
       'SELECT id FROM users WHERE email = ?',
       [email]
@@ -204,10 +235,8 @@ router.post(
       throw new BadRequestError('User with this email already exists');
     }
 
-    // Hash password
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // Get permissions based on role
     const rolePermissions: Record<string, string[]> = {
       moderator: ['manage_casinos', 'edit_reviews', 'view_stats', 'publish_content'],
       admin: ['manage_users', 'manage_casinos', 'edit_reviews', 'view_stats', 'publish_content'],
@@ -243,9 +272,20 @@ router.post(
   })
 );
 
-// PUT /users/:id - Update user
+/**
+ * PUT /users/:id - Update user (admin/owner only)
+ * @route PUT /users/:id
+ * @requires {string[]} auth - ['admin', 'owner']
+ * @param {string} param.id - User ID
+ * @param {string} [body.name] - User name (1-100 chars)
+ * @param {string} [body.role] - User role (moderator, admin, owner)
+ * @param {boolean} [body.isActive] - User active status
+ * @param {string} [body.password] - New password (min 8 chars)
+ * @returns {Object} Updated user
+ */
 router.put(
   '/:id',
+  requireAuth(['admin', 'owner']),
   validate([
     param('id').matches(/^\d+$/).withMessage('Validation failed (numeric string is expected)'),
     body('name').optional().trim().isLength({ min: 1, max: 100 }).withMessage('name must be between 1 and 100 characters'),
@@ -257,7 +297,6 @@ router.put(
     const userId = parseInt(id);
     const updates = req.body;
 
-    // Check if user exists
     const [existing] = await pool.execute(
       'SELECT * FROM users WHERE id = ?',
       [userId]
@@ -267,7 +306,6 @@ router.put(
       throw new NotFoundError('USER_NOT_FOUND');
     }
 
-    // Build update query dynamically
     const updateFields: string[] = [];
     const updateValues: any[] = [];
 
@@ -280,7 +318,6 @@ router.put(
       updateFields.push('role = ?');
       updateValues.push(updates.role);
 
-      // Update permissions based on role
       const rolePermissions: Record<string, string[]> = {
         moderator: ['manage_casinos', 'edit_reviews', 'view_stats', 'publish_content'],
         admin: ['manage_users', 'manage_casinos', 'edit_reviews', 'view_stats', 'publish_content'],
@@ -297,8 +334,8 @@ router.put(
     }
 
     if (updates.password !== undefined) {
-      if (updates.password.length < 6) {
-        throw new BadRequestError('password must be at least 6 characters');
+      if (updates.password.length < 8) {
+        throw new BadRequestError('password must be at least 8 characters');
       }
       const passwordHash = await bcrypt.hash(updates.password, 10);
       updateFields.push('password_hash = ?');
@@ -336,59 +373,52 @@ router.put(
   })
 );
 
-// PUT /users/me/password - Update current user's password using JWT
+/**
+ * PUT /users/me/password - Update current user's password using JWT
+ * @route PUT /users/me/password
+ * @requires {string[]} auth - Any authenticated user (any role is fine)
+ * @param {string} body.password - New password (min 8 chars)
+ * @returns {Object} Success message
+ */
 router.put(
   '/me/password',
+  requireAuth(),
   validate([
-    body('password').trim().isLength({ min: 6 }).withMessage('password must be at least 6 characters'),
+    body('password').trim().isLength({ min: 8 }).withMessage('password must be at least 8 characters'),
   ]),
   asyncHandler(async (req: Request, res) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new UnauthorizedError('Missing or invalid authorization header');
+    const { password } = req.body;
+    const userId = req.user!.userId;
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const [result] = await pool.execute(
+      'UPDATE users SET password_hash = ? WHERE id = ?',
+      [passwordHash, userId]
+    );
+
+    const updateResult = result as any;
+    if (updateResult.affectedRows === 0) {
+      throw new NotFoundError('USER_NOT_FOUND');
     }
 
-    const token = authHeader.split(' ')[1];
-
-    try {
-      const decoded: any = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-      const userId = decoded.userId;
-
-      if (!userId) {
-        throw new UnauthorizedError('Invalid token payload');
-      }
-
-      const { password } = req.body;
-
-      // Hash new password
-      const passwordHash = await bcrypt.hash(password, 10);
-
-      const [result] = await pool.execute(
-        'UPDATE users SET password_hash = ? WHERE id = ?',
-        [passwordHash, userId]
-      );
-
-      const updateResult = result as any;
-      if (updateResult.affectedRows === 0) {
-        throw new NotFoundError('USER_NOT_FOUND');
-      }
-
-      res.json({
-        code: 200,
-        message: 'Password updated successfully',
-      });
-    } catch (error) {
-      if (error instanceof jwt.JsonWebTokenError || error instanceof jwt.TokenExpiredError) {
-        throw new UnauthorizedError('Invalid or expired token');
-      }
-      throw error;
-    }
+    res.json({
+      code: 200,
+      message: 'Password updated successfully',
+    });
   })
 );
 
-// DELETE /users/:id - Delete user
+/**
+ * DELETE /users/:id - Delete user (owner only)
+ * @route DELETE /users/:id
+ * @requires {string[]} auth - ['owner']
+ * @param {string} param.id - User ID
+ * @returns {Object} Success message
+ */
 router.delete(
   '/:id',
+  requireAuth(['owner']),
   validate([
     param('id').matches(/^\d+$/).withMessage('Validation failed (numeric string is expected)'),
   ]),

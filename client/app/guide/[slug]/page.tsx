@@ -24,7 +24,6 @@ export default function GuidePage({ params }: { params: Promise<{ slug: string }
       if (blogData) {
         setBlog(blogData)
         
-        // Get related blogs (same category or tags)
         const related = allBlogs
           .filter(b => b.id !== blogData.id && b.status === "published")
           .slice(0, 3)
@@ -32,7 +31,6 @@ export default function GuidePage({ params }: { params: Promise<{ slug: string }
         
         setIsLoading(false)
       } else {
-        // Redirect to guides if blog doesn't exist
         window.location.href = "/guides"
       }
     }).catch((error) => {

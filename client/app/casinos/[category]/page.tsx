@@ -20,11 +20,10 @@ export default function CategoryCasinosPage() {
   const validCategory = categoryParam === "general" ? "general" : "cs2"
   
   const [casinoCategory, setCasinoCategory] = useState<"cs2" | "general">(validCategory)
-  const [selectedCountry, setSelectedCountry] = useState<"all" | "latvia" | "usa">("all")
+  const [selectedCountry, setSelectedCountry] = useState<string>("all")
   const [casinos, setCasinos] = useState<Casino[]>([])
   const [isLoading, setIsLoading] = useState(true)
   
-  // Filter state
   const [filters, setFilters] = useState<FilterState>({
     selectedTags: [],
     selectedPaymentMethods: [],
@@ -50,7 +49,6 @@ export default function CategoryCasinosPage() {
       const published = allCasinos.filter((c: Casino) => c.status === "published")
       setCasinos(published)
       
-      // Initialize rating range
       if (published.length > 0) {
         const ratings = published.map(c => c.rating)
         const minRating = Math.min(...ratings)
@@ -74,21 +72,24 @@ export default function CategoryCasinosPage() {
     router.push(`/casinos/${category}`)
   }
 
-  // Filter casinos based on category, country, and filters
+  // Get unique countries from general casinos
+  const availableCountries = useMemo(() => {
+    const generalCasinos = casinos.filter(c => c.category === "general" && c.country)
+    const uniqueCountries = Array.from(new Set(generalCasinos.map(c => c.country).filter(Boolean))) as string[]
+    return uniqueCountries.sort()
+  }, [casinos])
+
   const filteredCasinos = useMemo(() => {
     let filtered = casinos.filter((casino) => {
-      // Category filter
       if (casinoCategory === "cs2") {
         if (casino.category !== "cs2") return false
       } else {
         if (casino.category !== "general") return false
-        // Country filter for general casinos
         if (selectedCountry !== "all" && casino.country !== selectedCountry) {
           return false
         }
       }
 
-      // Tag filter
       if (filters.selectedTags.length > 0) {
         const hasAllTags = filters.selectedTags.every(tagId =>
           casino.tagIds?.includes(tagId)
@@ -96,7 +97,6 @@ export default function CategoryCasinosPage() {
         if (!hasAllTags) return false
       }
 
-      // Payment method filter
       if (filters.selectedPaymentMethods.length > 0) {
         const hasAnyPaymentMethod = filters.selectedPaymentMethods.some(methodId =>
           casino.paymentMethodIds?.includes(methodId)
@@ -104,7 +104,6 @@ export default function CategoryCasinosPage() {
         if (!hasAnyPaymentMethod) return false
       }
 
-      // Game mode filter
       if (filters.selectedGameModes.length > 0) {
         const hasAnyGameMode = filters.selectedGameModes.some(modeId =>
           casino.gameModeIds?.includes(modeId)
@@ -112,38 +111,31 @@ export default function CategoryCasinosPage() {
         if (!hasAnyGameMode) return false
       }
 
-      // License filter
       if (filters.selectedLicenses.length > 0) {
         if (!casino.license || !filters.selectedLicenses.includes(casino.license)) {
           return false
         }
       }
 
-      // Rating filter
       if (casino.rating < filters.minRating || casino.rating > filters.maxRating) {
         return false
       }
 
-      // Min deposit filter
       if (filters.minDeposit && filters.minDeposit.trim() !== "") {
         if (!casino.minDeposit) return false
         
-        // Parse the filter value (remove currency symbols and extract number)
         const filterValue = parseFloat(filters.minDeposit.replace(/[$,\s]/g, "").trim())
-        if (isNaN(filterValue)) return true // If invalid, don't filter
+        if (isNaN(filterValue)) return true
         
-        // Parse casino minDeposit (convert all currencies to $ and extract number)
         const casinoValue = parseFloat(casino.minDeposit.replace(/[€$£,\s]/g, "").trim())
-        if (isNaN(casinoValue)) return true // If invalid, include it
+        if (isNaN(casinoValue)) return true
         
-        // Filter: show casinos with minDeposit >= filter value
         if (casinoValue < filterValue) return false
       }
 
       return true
     })
 
-    // Sort: featured first
     return filtered.sort((a, b) => {
       if (a.isFeatured && !b.isFeatured) return -1
       if (!a.isFeatured && b.isFeatured) return 1
@@ -161,7 +153,6 @@ export default function CategoryCasinosPage() {
 
       <SiteHeader />
 
-      {/* Page Header */}
       <section className="pt-32 pb-8 px-4">
         <div className="container mx-auto max-w-7xl">
           <Link href="/" className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 mb-6 transition-colors">
@@ -180,9 +171,7 @@ export default function CategoryCasinosPage() {
       <section className="py-8 px-4" id="casinos">
         <div className="container mx-auto max-w-7xl">
           <div className="flex flex-col lg:flex-row gap-6">
-            {/* Left Sidebar - Category Selector & Filters */}
             <aside className="lg:w-64 shrink-0 space-y-4">
-              {/* Category Selector */}
               <div className="bg-white rounded-2xl border border-purple-200 p-4">
                 <h3 className="text-sm font-bold text-foreground mb-4">Category</h3>
                 <div className={`flex items-center gap-1 p-1 rounded-full bg-slate-100 border border-purple-100 shadow-sm relative sliding-bg ${casinoCategory === "general" ? "active-right" : ""}`}>
@@ -208,11 +197,10 @@ export default function CategoryCasinosPage() {
                   </button>
                 </div>
 
-                {/* Country Filter - Only show for general casinos */}
-                {casinoCategory === "general" && (
+                {casinoCategory === "general" && availableCountries.length > 0 && (
                   <div className="mt-4">
                     <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Country</h4>
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
                       <button
                         onClick={() => setSelectedCountry("all")}
                         className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-all duration-300 text-left ${
@@ -223,32 +211,24 @@ export default function CategoryCasinosPage() {
                       >
                         All Countries
                       </button>
-                      <button
-                        onClick={() => setSelectedCountry("latvia")}
-                        className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-all duration-300 text-left ${
-                          selectedCountry === "latvia"
-                            ? "bg-purple-600 text-white border-purple-600 shadow-sm"
-                            : "bg-white text-slate-600 border-slate-200 hover:bg-purple-50 hover:border-purple-200"
-                        }`}
-                      >
-                        🇱🇻 Latvia
-                      </button>
-                      <button
-                        onClick={() => setSelectedCountry("usa")}
-                        className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-all duration-300 text-left ${
-                          selectedCountry === "usa"
-                            ? "bg-purple-600 text-white border-purple-600 shadow-sm"
-                            : "bg-white text-slate-600 border-slate-200 hover:bg-purple-50 hover:border-purple-200"
-                        }`}
-                      >
-                        🇺🇸 USA
-                      </button>
+                      {availableCountries.map((country) => (
+                        <button
+                          key={country}
+                          onClick={() => setSelectedCountry(country)}
+                          className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-all duration-300 text-left ${
+                            selectedCountry === country
+                              ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                              : "bg-white text-slate-600 border-slate-200 hover:bg-purple-50 hover:border-purple-200"
+                          }`}
+                        >
+                          {country}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Filters */}
               <CasinoFilters
                 filters={filters}
                 onFiltersChange={setFilters}
@@ -256,7 +236,6 @@ export default function CategoryCasinosPage() {
               />
             </aside>
 
-            {/* Main Content */}
             <div className="flex-1">
               <div className="mb-4 text-sm text-muted-foreground">
                 Showing {filteredCasinos.length} casino{filteredCasinos.length !== 1 ? 's' : ''}

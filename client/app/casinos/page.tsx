@@ -7,7 +7,6 @@ export default function CasinosPage() {
   const router = useRouter()
   
   useEffect(() => {
-    // Redirect to cs2 category by default
     router.replace("/casinos/cs2")
   }, [router])
 

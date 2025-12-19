@@ -30,7 +30,6 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Get only published casinos from API
     getCasinos().then((allCasinos) => {
       setCasinos(allCasinos.filter((c: Casino) => c.status === "published"))
       setIsLoading(false)
@@ -45,7 +44,6 @@ export default function Home() {
     return c.category === casinoCategory
   })
 
-  // Sort: featured first, then by rating
   const sortedCasinos = [...filteredCasinos].sort((a, b) => {
     if (a.isFeatured && !b.isFeatured) return -1
     if (!a.isFeatured && b.isFeatured) return 1
@@ -62,7 +60,6 @@ export default function Home() {
 
       <SiteHeader />
 
-      {/* Hero Section */}
       <section className="pt-32 pb-20 px-4">
         <div className="container mx-auto max-w-6xl text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-600 text-white text-sm font-semibold mb-4 shadow-md shadow-purple-500/40">
@@ -102,7 +99,6 @@ export default function Home() {
             </Button>
           </div>
 
-          {/* Scroll Indicator */}
           <div
             onClick={() => {
               document.getElementById("casinos")?.scrollIntoView({
@@ -129,7 +125,6 @@ export default function Home() {
               Discover the best CS2 and traditional casinos with the most generous welcome offers and free bonuses.
             </p>
 
-            {/* Category Selector */}
             <div className="flex flex-wrap items-center justify-center gap-4 mb-8">
               <div className={`flex items-center gap-1 p-1 rounded-full bg-slate-100 border border-purple-100 shadow-sm relative sliding-bg ${casinoCategory === "general" ? "active-right" : ""}`} style={{ width: '160px' }}>
                 <button
@@ -195,7 +190,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* How It Works Section */}
       <section id="how-it-works" className="py-20 px-4 bg-white">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-16">
@@ -345,7 +339,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* CTA Section */}
       <section className="py-20 px-4 bg-gradient-to-br from-purple-600/10 via-fuchsia-500/10 to-purple-900/5">
         <div className="container mx-auto max-w-4xl text-center">
           <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-6 font-display">Ready to Claim Your Bonus?</h2>

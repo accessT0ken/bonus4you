@@ -1,9 +1,3 @@
-// casino-data.ts
-
-// (Global filter metadata like payment methods / tags / game modes used to live here)
-// All filter options are now derived directly from API casino data instead.
-
-// Casino structure
 export interface Casino {
   id: string
   name: string
@@ -15,23 +9,19 @@ export interface Casino {
   bonusText: string
   rewardsCount: number
   category: "cs2" | "general"
-  country?: "latvia" | "usa"
+  country?: string
   minDeposit?: string
   license?: string
   promoCode?: string
   description?: string
   founded?: string
 
-  // NEW: Reference payment methods by ID
   paymentMethodIds?: string[]
 
-  // Optional tags (chips) referenced by ID from casinoTags
   tagIds?: string[]
 
-  // Game modes available at this casino
   gameModeIds?: string[]
 
-  // Used to highlight especially popular casinos in the UI
   isFeatured?: boolean
 
   hasReview: boolean
@@ -53,7 +43,6 @@ export interface Casino {
   updatedAt: string
 }
 
-// Transform API response to Casino format
 function transformApiCasino(apiCasino: any): Casino {
   return {
     id: String(apiCasino.id),
@@ -89,28 +78,22 @@ function transformApiCasino(apiCasino: any): Casino {
   }
 }
 
-// Cache for client-side
 let cachedCasinos: Casino[] | null = null
 let cacheTimestamp: number = 0
-const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+const CACHE_DURATION = 5 * 60 * 1000
 
-// Clear cache
 export function clearCasinoCache() {
   cachedCasinos = null
   cacheTimestamp = 0
 }
 
-// Get all casinos from API
 export async function getCasinos(options?: { status?: 'all' | 'published' }): Promise<Casino[]> {
-  // For admin pages, we want to fetch fresh data (no cache) and all statuses
   const shouldUseCache = options?.status !== 'all'
   
-  // Return cached data if available and fresh (only for published casinos)
   if (shouldUseCache && cachedCasinos && Date.now() - cacheTimestamp < CACHE_DURATION) {
     return cachedCasinos
   }
 
-  // Server-side: return empty array (will be fetched via API routes)
   if (typeof window === "undefined") {
     return []
   }
@@ -123,7 +106,6 @@ export async function getCasinos(options?: { status?: 'all' | 'published' }): Pr
     
     if (response.data && Array.isArray(response.data)) {
       const casinos = response.data.map(transformApiCasino)
-      // Only cache published casinos
       if (shouldUseCache) {
         cachedCasinos = casinos
         cacheTimestamp = Date.now()
@@ -134,7 +116,6 @@ export async function getCasinos(options?: { status?: 'all' | 'published' }): Pr
     return []
   } catch (error) {
     console.error('Failed to fetch casinos:', error)
-    // Return cached data if available, even if stale (only for published)
     if (shouldUseCache && cachedCasinos) {
       return cachedCasinos
     }
@@ -142,7 +123,6 @@ export async function getCasinos(options?: { status?: 'all' | 'published' }): Pr
   }
 }
 
-// Get casino by slug
 export async function getCasinoBySlug(slug: string): Promise<Casino | undefined> {
   if (typeof window === "undefined") {
     return undefined
@@ -159,7 +139,6 @@ export async function getCasinoBySlug(slug: string): Promise<Casino | undefined>
     return undefined
   } catch (error) {
     console.error('Failed to fetch casino:', error)
-    // Fallback to cache
     if (cachedCasinos) {
       return cachedCasinos.find(c => c.slug === slug)
     }
@@ -167,14 +146,10 @@ export async function getCasinoBySlug(slug: string): Promise<Casino | undefined>
   }
 }
 
-// Save casinos (for admin - updates API)
 export async function saveCasinos(casinos: Casino[]): Promise<void> {
-  // This is mainly for admin operations
-  // Individual updates should use updateCasinoProperties
   clearCasinoCache()
 }
 
-// Tracking functions
 export async function trackLandingPageView(slug: string): Promise<void> {
   if (typeof window === "undefined") return
 
@@ -220,7 +195,6 @@ export async function trackReviewRead(slug: string): Promise<void> {
   }
 }
 
-// Update section content
 export async function updateSectionContent(
   slug: string,
   sectionId: string,
@@ -232,7 +206,6 @@ export async function updateSectionContent(
     const casino = await getCasinoBySlug(slug)
     if (!casino) return false
 
-    // Initialize reviewContent if it doesn't exist
     if (!casino.reviewContent) {
       casino.reviewContent = {
         sections: [],
@@ -241,7 +214,6 @@ export async function updateSectionContent(
       }
     }
 
-    // Initialize sections array if it doesn't exist or is empty
     if (!casino.reviewContent.sections || casino.reviewContent.sections.length === 0) {
       casino.reviewContent.sections = [
         { id: "overview", title: "Overview & History", content: "" },
@@ -254,10 +226,8 @@ export async function updateSectionContent(
       ]
     }
 
-    // Find or create the section
     let section = casino.reviewContent.sections.find((s) => s.id === sectionId)
     if (!section) {
-      // Create new section if it doesn't exist
       const sectionTitles: Record<string, string> = {
         overview: "Overview & History",
         rewards: "Rewards & Promotions",
@@ -275,17 +245,14 @@ export async function updateSectionContent(
       casino.reviewContent.sections.push(section)
     }
 
-    // Update section content
     section.content = newContent
 
-    // Also update overview/verdict if it's one of those special sections
     if (sectionId === "overview") {
       casino.reviewContent.overview = newContent
     } else if (sectionId === "verdict") {
       casino.reviewContent.verdict = newContent
     }
 
-    // Ensure hasReview is true when saving content
     const { casinosApi } = await import('./api-client')
     await casinosApi.update(casino.id, {
       reviewContent: casino.reviewContent,
@@ -300,7 +267,6 @@ export async function updateSectionContent(
   }
 }
 
-// Update casino properties
 export async function updateCasinoProperties(
   slug: string,
   updates: Partial<Casino>
@@ -311,14 +277,27 @@ export async function updateCasinoProperties(
     const casino = await getCasinoBySlug(slug)
     if (!casino) return false
 
-    // Transform updates to API format
     const apiUpdates: any = {}
+    if (updates.name !== undefined) apiUpdates.name = updates.name
+    if (updates.slug !== undefined) apiUpdates.slug = updates.slug
+    if (updates.logo !== undefined) apiUpdates.logo = updates.logo
     if (updates.rating !== undefined) apiUpdates.rating = updates.rating
     if (updates.bonusText !== undefined) apiUpdates.bonusText = updates.bonusText
     if (updates.tagText !== undefined) apiUpdates.tagText = updates.tagText
     if (updates.tagType !== undefined) apiUpdates.tagType = updates.tagType
     if (updates.promoCode !== undefined) apiUpdates.promoCode = updates.promoCode
     if (updates.description !== undefined) apiUpdates.description = updates.description
+    if (updates.category !== undefined) apiUpdates.category = updates.category
+    if (updates.country !== undefined) apiUpdates.country = updates.country
+    if (updates.status !== undefined) apiUpdates.status = updates.status
+    if (updates.founded !== undefined) apiUpdates.founded = updates.founded
+    if (updates.license !== undefined) apiUpdates.license = updates.license
+    if (updates.minDeposit !== undefined) apiUpdates.minDeposit = updates.minDeposit
+    if (updates.rewardsCount !== undefined) apiUpdates.rewardsCount = updates.rewardsCount
+    if (updates.paymentMethodIds !== undefined) apiUpdates.paymentMethodIds = updates.paymentMethodIds
+    if (updates.tagIds !== undefined) apiUpdates.tagIds = updates.tagIds
+    if (updates.gameModeIds !== undefined) apiUpdates.gameModeIds = updates.gameModeIds
+    if (updates.isFeatured !== undefined) apiUpdates.isFeatured = updates.isFeatured
     if (updates.hasReview !== undefined) apiUpdates.hasReview = updates.hasReview
     if (updates.reviewContent !== undefined) apiUpdates.reviewContent = updates.reviewContent
 

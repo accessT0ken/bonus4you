@@ -2,27 +2,33 @@ import { Router } from 'express';
 import { param, query, body } from 'express-validator';
 import { asyncHandler } from '../middleware/asyncHandler';
 import { validate } from '../middleware/validation';
+import { requireAuth } from '../middleware/auth';
 import { NotFoundError, BadRequestError } from '../types/errors';
 import pool from '../config/database';
 
 const router = Router();
 
-// GET /blogs - List all blogs with filtering
+/**
+ * GET /blogs - List all blogs with filtering
+ * @route GET /blogs
+ * @param {string} [query.status] - Filter by status (draft, published)
+ * @param {string} [query.category] - Filter by category (max 100 chars)
+ * @param {string} [query.page] - Page number (default: 1)
+ * @param {string} [query.limit] - Items per page (default: 10, max: 100)
+ * @returns {Object} Paginated list of blogs
+ */
 router.get(
   '/',
   validate([
     query('status').optional().isIn(['draft', 'published']).withMessage('status must be either "draft" or "published"'),
     query('category').optional().trim().isLength({ max: 100 }).withMessage('category must be shorter than or equal to 100 characters'),
-    // Page and limit are sanitized in the route handler, no validation needed
   ]),
   asyncHandler(async (req, res) => {
     const { status, category, page: pageParam = '1', limit: limitParam } = req.query;
     
-    // Sanitize and validate page
     const pageNum = Math.max(parseInt(String(pageParam)) || 1, 1);
     
-    // Sanitize and validate limit (default to 10 if not provided, clamp to 1-100)
-    let limitNum = 10; // Default
+    let limitNum = 10;
     if (limitParam !== undefined && limitParam !== null && limitParam !== '') {
       const parsed = parseInt(String(limitParam));
       if (!isNaN(parsed) && parsed > 0) {
@@ -60,7 +66,6 @@ router.get(
     );
     const total = (countRows as any[])[0].total;
 
-    // Parse JSON fields
     const blogs = (rows as any[]).map(blog => ({
       ...blog,
       tags: blog.tags ? JSON.parse(blog.tags) : [],
@@ -79,7 +84,12 @@ router.get(
   })
 );
 
-// GET /blogs/:slug - Get blog by slug
+/**
+ * GET /blogs/:slug - Get blog by slug
+ * @route GET /blogs/:slug
+ * @param {string} param.slug - Blog slug
+ * @returns {Object} Blog details
+ */
 router.get(
   '/:slug',
   validate([
@@ -112,9 +122,23 @@ router.get(
   })
 );
 
-// POST /blogs - Create new blog
+/**
+ * POST /blogs - Create new blog (moderator/admin/owner only)
+ * @route POST /blogs
+ * @requires {string[]} auth - ['moderator', 'admin', 'owner']
+ * @param {string} body.title - Blog title (1-200 chars)
+ * @param {string} body.slug - Blog slug (1-200 chars)
+ * @param {string} body.excerpt - Blog excerpt (1-500 chars)
+ * @param {string} body.content - Blog content
+ * @param {string} [body.status] - Status (draft, published)
+ * @param {string} [body.author] - Author name (max 100 chars)
+ * @param {string} [body.category] - Category (max 100 chars)
+ * @param {string[]} [body.tags] - Tags array
+ * @returns {Object} Created blog
+ */
 router.post(
   '/',
+  requireAuth(['moderator', 'admin', 'owner']),
   validate([
     body('title').trim().isLength({ min: 1, max: 200 }).withMessage('title must be between 1 and 200 characters'),
     body('slug').trim().isLength({ min: 1, max: 200 }).withMessage('slug must be between 1 and 200 characters'),
@@ -139,7 +163,6 @@ router.post(
       tags = [],
     } = req.body;
 
-    // Check if slug already exists
     const [existing] = await pool.execute(
       'SELECT id FROM blogs WHERE slug = ?',
       [slug]
@@ -187,9 +210,20 @@ router.post(
   })
 );
 
-// PUT /blogs/:id - Update blog
+/**
+ * PUT /blogs/:id - Update blog (moderator/admin/owner only)
+ * @route PUT /blogs/:id
+ * @requires {string[]} auth - ['moderator', 'admin', 'owner']
+ * @param {string} param.id - Blog ID
+ * @param {string} [body.title] - Blog title (1-200 chars)
+ * @param {string} [body.slug] - Blog slug (1-200 chars)
+ * @param {string} [body.excerpt] - Blog excerpt (1-500 chars)
+ * @param {string} [body.content] - Blog content
+ * @returns {Object} Updated blog
+ */
 router.put(
   '/:id',
+  requireAuth(['moderator', 'admin', 'owner']),
   validate([
     param('id').matches(/^\d+$/).withMessage('Validation failed (numeric string is expected)'),
     body('title').optional().trim().isLength({ min: 1, max: 200 }).withMessage('title must be between 1 and 200 characters'),
@@ -202,7 +236,6 @@ router.put(
     const blogId = parseInt(id);
     const updates = req.body;
 
-    // Check if blog exists
     const [existing] = await pool.execute(
       'SELECT * FROM blogs WHERE id = ?',
       [blogId]
@@ -212,7 +245,6 @@ router.put(
       throw new NotFoundError('BLOG_NOT_FOUND');
     }
 
-    // Check if slug is being updated and if it conflicts
     if (updates.slug) {
       const [slugCheck] = await pool.execute(
         'SELECT id FROM blogs WHERE slug = ? AND id != ?',
@@ -223,7 +255,6 @@ router.put(
       }
     }
 
-    // Build update query dynamically
     const updateFields: string[] = [];
     const updateValues: any[] = [];
 
@@ -284,9 +315,16 @@ router.put(
   })
 );
 
-// DELETE /blogs/:id - Delete blog
+/**
+ * DELETE /blogs/:id - Delete blog (admin/owner only)
+ * @route DELETE /blogs/:id
+ * @requires {string[]} auth - ['admin', 'owner']
+ * @param {string} param.id - Blog ID
+ * @returns {Object} Success message
+ */
 router.delete(
   '/:id',
+  requireAuth(['admin', 'owner']),
   validate([
     param('id').matches(/^\d+$/).withMessage('Validation failed (numeric string is expected)'),
   ]),

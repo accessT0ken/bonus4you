@@ -100,7 +100,6 @@ export default function UsersPage() {
       return
     }
 
-    // Validate password fields
     if (formData.password || formData.confirmPassword) {
       if (formData.password.length < 6 && !editingId) {
         toast({
@@ -120,7 +119,6 @@ export default function UsersPage() {
         return
       }
     } else if (!editingId) {
-      // Creating a new user requires a password
       toast({
         variant: "warning",
         title: "Validation Error",
@@ -131,13 +129,11 @@ export default function UsersPage() {
 
     try {
       if (editingId) {
-        // Update existing user
         const success = await updateUser(editingId, {
           email: formData.email,
           name: formData.name,
           role: formData.role,
           isActive: formData.isActive,
-          // Only send password if provided (allows changing password in panel)
           ...(formData.password ? { password: formData.password } : {}),
         })
         if (success) {
@@ -157,7 +153,6 @@ export default function UsersPage() {
           })
         }
       } else {
-        // Create new user
         await createUser({
           email: formData.email,
           name: formData.name,

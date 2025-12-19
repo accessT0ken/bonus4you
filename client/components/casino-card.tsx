@@ -81,19 +81,14 @@ export function CasinoCard({ casino }: { casino: Casino }) {
           casino.isFeatured ? "ring-2 ring-purple-400 shadow-purple-500/40 scale-[1.01]" : ""
         }`}
       >
-      {/* Featured - Enhanced eye-catching effects */}
       {casino.isFeatured && (
         <>
-          {/* Animated gradient border */}
           <div className="absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-purple-600 via-pink-500 via-fuchsia-500 to-purple-600 opacity-75 animate-gradient-x blur-sm"></div>
           
-          {/* Pulsing glow effect */}
           <div className="pointer-events-none absolute -inset-2 rounded-3xl bg-gradient-to-r from-purple-500/50 via-pink-500/50 to-fuchsia-500/50 blur-xl animate-pulse-slow"></div>
           
-          {/* Shimmer overlay */}
           <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none rounded-2xl"></div>
           
-          {/* Enhanced badge with crown */}
           <div className="absolute left-4 top-4 z-20 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-purple-600 via-pink-500 to-fuchsia-500 text-white px-3.5 py-1.5 text-[10px] font-bold shadow-lg shadow-purple-500/50 animate-bounce-subtle border-2 border-white/30">
             <Crown className="w-3.5 h-3.5 animate-pulse" fill="currentColor" />
             <span className="relative">
@@ -103,7 +98,6 @@ export function CasinoCard({ casino }: { casino: Casino }) {
             <Sparkles className="w-3 h-3 animate-spin-slow" />
           </div>
           
-          {/* Floating sparkles */}
           <div className="absolute top-6 right-6 z-20 pointer-events-none">
             <div className="relative w-8 h-8">
               <Sparkles className="w-6 h-6 text-yellow-400 animate-ping absolute" />
@@ -111,7 +105,6 @@ export function CasinoCard({ casino }: { casino: Casino }) {
             </div>
           </div>
           
-          {/* Animated corner accent */}
           <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-purple-500/30 to-transparent rounded-bl-full pointer-events-none">
             <div className="absolute top-2 right-2 w-3 h-3 bg-yellow-400 rounded-full animate-ping"></div>
           </div>
@@ -119,7 +112,6 @@ export function CasinoCard({ casino }: { casino: Casino }) {
       )}
 
       <div className="relative flex flex-col md:flex-row bg-[#F9F5FF] backdrop-blur-sm text-[#000025] min-h-full z-10">
-        {/* Logo column - full white background */}
         <div className="w-full md:w-1/4 md:min-w-[190px] flex items-center justify-center p-4 bg-white self-stretch">
           <div className="w-full max-w-[190px] rounded-2xl bg-white px-4 py-3 flex items-center justify-center">
             <img
@@ -130,11 +122,8 @@ export function CasinoCard({ casino }: { casino: Casino }) {
           </div>
         </div>
 
-        {/* Main + right content */}
         <div className="flex md:flex-row flex-1 min-h-full">
-          {/* Main content */}
           <div className="flex-1 p-4 md:pr-0 md:min-w-0 flex flex-col self-stretch">
-          {/* Top row: name + small tag */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-2">
             <h2 className="text-lg sm:text-xl font-bold uppercase tracking-wide truncate">{casino.name}</h2>
             <div
@@ -148,7 +137,6 @@ export function CasinoCard({ casino }: { casino: Casino }) {
             </div>
           </div>
 
-          {/* Highlight badges */}
           {tags.length > 0 && (
             <div className="hidden md:flex flex-wrap gap-2 mt-1">
               {tags.map((tag: CasinoTag) => (
@@ -162,11 +150,8 @@ export function CasinoCard({ casino }: { casino: Casino }) {
             </div>
           )}
 
-          {/* Rating + stats + bottom info row */}
           <div className="mt-4 pt-3 border-t border-[#000025]/10">
-            {/* First row: Rating, Min deposit, License */}
             <div className="flex flex-wrap items-center gap-3 text-xs md:text-[11px] mb-2">
-              {/* Rating semicircle chart */}
               <div className="flex items-center flex-shrink-0">
                 <div className="flex flex-col items-center max-w-[70px] md:mr-2">
                   <div className="relative w-16 h-16 flex items-center justify-center">
@@ -197,7 +182,6 @@ export function CasinoCard({ casino }: { casino: Casino }) {
                 </div>
               </div>
 
-              {/* Min deposit + license (desktop layout) */}
               <div className="hidden md:flex md:items-center md:h-12 md:flex-shrink-0">
               {casino.minDeposit && (
                 <>
@@ -229,9 +213,7 @@ export function CasinoCard({ casino }: { casino: Casino }) {
               </div>
             </div>
 
-            {/* Second row: Views/clicks and Payments */}
             <div className="flex flex-wrap items-center gap-3 text-xs md:text-[11px]">
-              {/* Views / clicks pills */}
               <div className="flex items-center gap-2 text-[#000025]/70 flex-shrink-0">
                 <span className="px-2 py-0.5 rounded-full bg-white/60 border border-white text-[10px] font-semibold whitespace-nowrap">
                   {viewsText}
@@ -241,7 +223,6 @@ export function CasinoCard({ casino }: { casino: Casino }) {
                 </span>
               </div>
 
-              {/* Payments slider-style */}
               {methods.length > 0 && (
                 <div className="flex items-center ml-auto md:ml-0 space-x-1 md:space-x-2 md:mt-0 w-auto md:flex-shrink-0">
                 <button
@@ -290,7 +271,6 @@ export function CasinoCard({ casino }: { casino: Casino }) {
           </div>
           </div>
 
-          {/* Right column: bonus + CTA */}
           <div className="w-full md:w-56 md:border-l border-purple-200 bg-white p-4 flex flex-col justify-between gap-3 self-stretch">
             <div>
               <p className="text-[11px] font-semibold text-[#000025]/70 mb-1">For new players</p>

@@ -1,6 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError, ApiError, ValidationError as CustomValidationError } from '../types/errors';
 
+/**
+ * Global error handler middleware
+ * @param {Error | AppError} err - Error object
+ * @param {Request} req - Express request object
+ * @param {Response} res - Express response object
+ * @param {NextFunction} next - Express next function
+ */
 export const errorHandler = (
   err: Error | AppError,
   req: Request,
@@ -11,8 +18,6 @@ export const errorHandler = (
   let message = 'Internal Server Error';
   let errors: Record<string, string> | string | undefined;
 
-  // Handle known AppError instances (including ValidationError which extends AppError)
-  // Check for ValidationError first since it extends AppError
   if (err instanceof CustomValidationError) {
     statusCode = err.statusCode;
     message = err.message;
@@ -24,7 +29,6 @@ export const errorHandler = (
   } else if (err.name === 'ValidationError' || err.constructor.name === 'ValidationError') {
     statusCode = 400;
     message = 'Validation failed';
-    // Try to extract errors from the error object
     if ((err as any).errors) {
       errors = (err as any).errors;
     }
@@ -38,7 +42,6 @@ export const errorHandler = (
     message = err.message;
   }
 
-  // Format timestamp
   const timestamp = new Date().toLocaleString('en-US', {
     timeZone: 'UTC',
     hour12: false,
@@ -60,12 +63,10 @@ export const errorHandler = (
     service: process.env.SERVICE_NAME || 'api-gateway',
   };
 
-  // Add errors object if validation errors exist
   if (errors) {
     errorResponse.errors = errors;
   }
 
-  // Log error in development
   if (process.env.NODE_ENV === 'development') {
     console.error('Error:', {
       statusCode,
@@ -80,17 +81,19 @@ export const errorHandler = (
     });
   }
 
-  // Ensure we always send JSON response with proper content type
-  // Check if headers are already sent to avoid "Cannot set headers after they are sent" error
   if (!res.headersSent) {
     res.status(statusCode).setHeader('Content-Type', 'application/json').json(errorResponse);
   } else {
-    // If headers already sent, log the error (shouldn't happen but just in case)
     console.error('Cannot send error response - headers already sent', { statusCode, message });
   }
 };
 
-// 404 handler for undefined routes
+/**
+ * 404 handler for undefined routes
+ * @param {Request} req - Express request object
+ * @param {Response} res - Express response object
+ * @param {NextFunction} next - Express next function
+ */
 export const notFoundHandler = (
   req: Request,
   res: Response,

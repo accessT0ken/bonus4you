@@ -12,6 +12,7 @@ import { getCasinos, saveCasinos, type Casino } from "@/lib/casino-data"
 import { getCurrentUser, hasPermission } from "@/lib/user-data"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
+import { COUNTRIES } from "@/lib/countries"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -68,7 +69,6 @@ export default function CasinosPage() {
   })
 
   useEffect(() => {
-    // Fetch all casinos (including drafts) for admin panel
     getCasinos({ status: 'all' }).then((casinosList) => {
       setCasinos(casinosList)
     }).catch((error) => {
@@ -84,7 +84,6 @@ export default function CasinosPage() {
       setCurrentUser(user)
     })
 
-    // Load filter options from API
     import("@/lib/api-client").then(({ casinosApi }) => {
       casinosApi.getFilterOptions().then((response) => {
         if (response.data) {
@@ -103,38 +102,12 @@ export default function CasinosPage() {
   const canManageCasinos = hasPermission(currentUser, "manage_casinos")
 
   const handleCreate = () => {
-    setIsCreating(true)
-    setEditingId(null)
-    setFormData({
-      name: "",
-      slug: "",
-      logo: "",
-      tagType: "free",
-      tagText: "",
-      rating: 5,
-      bonusText: "",
-      rewardsCount: 0,
-      category: "cs2",
-      hasReview: false,
-      status: "draft",
-      description: "",
-      founded: "",
-      license: "",
-      minDeposit: "",
-      paymentMethods: [],
-      games: [],
-      promoCode: "",
-      reviewContent: {
-        sections: [],
-        overview: "",
-        verdict: "",
-      },
-    })
+    // Generate a temporary slug for new casino
+    const tempSlug = `new-casino-${Date.now()}`
+    window.location.href = `/review/${tempSlug}?edit=true&new=true`
   }
 
   const handleEdit = (casino: Casino) => {
-    // Always redirect to review page with editor mode
-    // If no review exists, it will be created when editor mode is enabled
     window.location.href = `/review/${casino.slug}?edit=true`
   }
 
@@ -153,7 +126,6 @@ export default function CasinosPage() {
       const { clearCasinoCache } = await import("@/lib/casino-data")
 
       if (editingId) {
-        // Update existing casino
         await casinosApi.update(editingId, {
           name: formData.name,
           slug: formData.slug,
@@ -181,7 +153,6 @@ export default function CasinosPage() {
           description: "Casino has been successfully updated.",
         })
       } else {
-        // Create new casino
         await casinosApi.create({
           name: formData.name,
           slug: formData.slug,
@@ -210,7 +181,6 @@ export default function CasinosPage() {
         })
       }
 
-      // Reload casinos (fetch all including drafts)
       const { getCasinos } = await import("@/lib/casino-data")
       const updatedCasinos = await getCasinos({ status: 'all' })
       setCasinos(updatedCasinos)
@@ -247,7 +217,6 @@ export default function CasinosPage() {
       await casinosApi.delete(id)
       clearCasinoCache()
       
-      // Fetch all casinos (including drafts) for admin panel
       const updatedCasinos = await getCasinos({ status: 'all' })
       setCasinos(updatedCasinos)
       
@@ -477,7 +446,15 @@ export default function CasinosPage() {
                 <select
                   id="category"
                   value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value as "cs2" | "general" })}
+                  onChange={(e) => {
+                    const newCategory = e.target.value as "cs2" | "general"
+                    setFormData({ 
+                      ...formData, 
+                      category: newCategory,
+                      // Clear country when switching to CS2
+                      country: newCategory === "cs2" ? undefined : formData.country
+                    })
+                  }}
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
                 >
                   {filterOptions.categories.length > 0 ? (
@@ -501,23 +478,16 @@ export default function CasinosPage() {
                     id="country"
                     value={formData.country || ""}
                     onChange={(e) =>
-                      setFormData({ ...formData, country: e.target.value as "latvia" | "usa" | undefined })
+                      setFormData({ ...formData, country: e.target.value || undefined })
                     }
                     className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
                   >
-                    <option value="">All</option>
-                    {filterOptions.countries.length > 0 ? (
-                      filterOptions.countries.map((country) => (
-                        <option key={country} value={country}>
-                          {country.charAt(0).toUpperCase() + country.slice(1)}
-                        </option>
-                      ))
-                    ) : (
-                      <>
-                        <option value="latvia">Latvia</option>
-                        <option value="usa">USA</option>
-                      </>
-                    )}
+                    <option value="">Select Country</option>
+                    {COUNTRIES.map((country) => (
+                      <option key={country} value={country}>
+                        {country}
+                      </option>
+                    ))}
                   </select>
                 </div>
               )}

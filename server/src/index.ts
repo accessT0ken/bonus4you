@@ -11,10 +11,8 @@ dotenv.config();
 const app: Express = express();
 const PORT = process.env.PORT || 3001;
 
-// Security middleware
 app.use(helmet());
 
-// CORS configuration
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
@@ -22,21 +20,22 @@ app.use(
   })
 );
 
-// Body parser middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Logging middleware
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 } else {
-  app.use(morgan('combined'));
-}
+    app.use(morgan('combined'));
+  }
 
-// API routes
 app.use('/api', routes);
 
-// Root endpoint
+/**
+ * GET / - Root endpoint
+ * @route GET /
+ * @returns {Object} API information
+ */
 app.get('/', (req, res) => {
   res.json({
     code: 200,
@@ -51,13 +50,10 @@ app.get('/', (req, res) => {
   });
 });
 
-// 404 handler for undefined routes
 app.use(notFoundHandler);
 
-// Error handling middleware (must be last)
 app.use(errorHandler);
 
-// Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
